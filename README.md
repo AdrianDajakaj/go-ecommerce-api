@@ -1216,7 +1216,7 @@ Content-Length: 678
 - **Request**
 
 ```bash
-curl -X DELETE -i http://localhost:8080/carts/item/1
+curl -X DELETE -i http://localhost:8080/cart/item/1
 ```
 
 - **Response**
@@ -1331,7 +1331,8 @@ Content-Length: 680
 - **Request**
 
 ```bash
-curl -X POST -i http://localhost:8080/users/1/orders   -H "Content-Type: application/json"
+curl -X POST -i http://localhost:8080/users/1/orders \
+  -H "Content-Type: application/json" \
   -d '{
     "payment_method": "CARD",
     "shipping_address_id": 1
