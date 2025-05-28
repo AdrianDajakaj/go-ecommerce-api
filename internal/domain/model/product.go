@@ -15,6 +15,7 @@ type Product struct {
 	Name        string  `json:"name" gorm:"size:200;not null"`
 	Description string  `json:"description" gorm:"type:text"`
 	Price       float64 `json:"price" gorm:"not null"`
+	Currency    string  `json:"currency" gorm:"size:10;not null;default:'USD'"`
 	Stock       int     `json:"stock" gorm:"not null;default:0"`
 	IsActive    bool    `json:"is_active" gorm:"not null;default:true"`
 
