@@ -119,7 +119,7 @@ e.Start(":8080") // change used port
 ## Features
 
 * Clean Architecture structure
-* CRUD operations for Users, Products, Categories, Carts, Orders
+* CRUD operations for Users, Products, Categories (with hierarchy), Carts, Orders
 * Cart management (Add, Update, Remove items)
 * Order placement and status tracking
 * GORM scopes for dynamic filtering via query parameters
@@ -175,7 +175,8 @@ http://localhost:8080
 
 ```json
 {
-  "name": "Electronics"
+  "name": "Electronics",
+  "parent_id": 1   
 }
 ```
 
@@ -219,6 +220,7 @@ Each model exposes standardized RESTful endpoints:
 * `GET     /categories` – Get all categories
 * `GET     /categories/{id}` – Get category by ID
 * `GET     /categories/search?...` – Search categories using query parameters (with scopes)
+* `GET /categories/{id}/subcategories` - Get all subcategories for given category
 * `PUT     /categories/{id}` – Update category
 * `DELETE  /categories/{id}` – Delete category
 
@@ -256,39 +258,43 @@ Each model exposes standardized RESTful endpoints:
 
 ### User Scopes
 
-* `email=john@example.com`
-* `name=John`
-* `surname=Doe`
-* `country=USA`
-* `city=New York`
+* `email=<value>` — filter users by exact email  
+* `name=<value>` — filter users by first name (contains)  
+* `surname=<value>` — filter users by surname (contains)  
+* `country=<value>` — filter users by country (exact)  
+* `city=<value>` — filter users by city (exact)  
 
 ### Product Scopes
 
-* `name=phone`
-* `category_id=1`
-* `is_active=true`
-* `price_min=100&price_max=500`
+* `name=<value>` — search products whose name contains the given string  
+* `category_id=<id>` — filter products by their category ID  
+* `is_active=<true|false>` — filter products by active status  
+* `price_min=<n>&price_max=<m>` — filter products within a price range  
+* `with_category=true` — eager-load and include each product’s Category object in the response  
 
 ### Category Scopes
 
-* `name=electronics`
-* `created_after=2023-01-01T00:00:00Z`
-* `created_before=2023-12-31T23:59:59Z`
-* `min_products=3`
-* `with_products=true`
+* `name=<value>` — search categories whose name contains the given string  
+* `created_after=<RFC3339 timestamp>` — filter categories created on or after the given date  
+* `created_before=<RFC3339 timestamp>` — filter categories created on or before the given date  
+* `min_products=<n>` — filter categories having at least _n_ products  
+* `parent_id=<id>` — filter categories whose parent category ID equals the given value  
+* `with_products=true` — eager-load and include each category’s Products array in the response  
+* `with_subcategories=true` — eager-load and include each category’s Subcategories array in the response  
 
 ### Order Scopes
 
-* `user_id=1`
-* `status=PAID`
-* `created_after=2023-01-01T00:00:00Z`
-* `total_min=100&total_max=1000`
+* `user_id=<id>` — filter orders by the ID of the user who placed them  
+* `status=<value>` — filter orders by status (e.g. `PENDING`, `PAID`, `CANCELLED`)  
+* `created_after=<RFC3339 timestamp>` — filter orders created on or after the given date  
+* `total_min=<n>&total_max=<m>` — filter orders whose total is within the given range  
 
 ### Cart Scopes
 
-* `user_id=1`
-* `total_min=100&total_max=500`
-* `created_before=2024-01-01T00:00:00Z`
+* `user_id=<id>` — filter carts by the ID of the owning user  
+* `total_min=<n>&total_max=<m>` — filter carts whose total (sum of items) is within the given range  
+* `created_before=<RFC3339 timestamp>` — filter carts created on or before the given date  
+
 
 ---
 

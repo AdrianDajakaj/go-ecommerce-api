@@ -39,3 +39,15 @@ func ScopeCategoryByMinProducts(min int) func(db *gorm.DB) *gorm.DB {
 			Having("COUNT(p.id) >= ?", min)
 	}
 }
+
+func ScopeCategoryByParentID(id uint) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Where("parent_id = ?", id)
+	}
+}
+
+func ScopeCategoryWithSubcategories() func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Preload("Subcategories")
+	}
+}

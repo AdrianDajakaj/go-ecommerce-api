@@ -21,7 +21,11 @@ func NewCategoryRepository(db *gorm.DB) repository.CategoryRepository {
 
 func (r *categoryRepository) FindByID(id uint) (*model.Category, error) {
 	var category model.Category
-	if err := r.db.First(&category, id).Error; err != nil {
+	if err := r.db.Preload("Subcategories").
+		Preload("Products").
+		Preload("ParentCategory").
+		First(&category, id).Error; err != nil {
+
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -44,7 +48,9 @@ func (r *categoryRepository) FindWithFilters(filters map[string]string) ([]model
 	if _, ok := filters["with_products"]; ok {
 		db = db.Scopes(scope.ScopeCategoryWithProducts())
 	}
-
+	if _, ok := filters["with_subcategories"]; ok {
+		db = db.Scopes(scope.ScopeCategoryWithSubcategories())
+	}
 	if v, ok := filters["name"]; ok {
 		db = db.Scopes(scope.ScopeCategoryByName(v))
 	}
@@ -63,9 +69,14 @@ func (r *categoryRepository) FindWithFilters(filters map[string]string) ([]model
 			db = db.Scopes(scope.ScopeCategoryByMinProducts(n))
 		}
 	}
+	if v, ok := filters["parent_id"]; ok {
+		if id, err := strconv.Atoi(v); err == nil {
+			db = db.Scopes(scope.ScopeCategoryByParentID(uint(id)))
+		}
+	}
 
 	var cats []model.Category
-	if err := db.Find(&cats).Error; err != nil {
+	if err := db.Preload("Subcategories").Find(&cats).Error; err != nil {
 		return nil, err
 	}
 	return cats, nil

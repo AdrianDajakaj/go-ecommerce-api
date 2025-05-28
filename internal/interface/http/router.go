@@ -49,6 +49,8 @@ func NewRouter(db *gorm.DB) *echo.Echo {
 	cartHandler := handler.NewCartHandler(cartUsecase)
 	orderHandler := handler.NewOrderHandler(orderUsecase)
 
+	e.Static("/images", "assets/images/")
+
 	e.POST("/users/register", userHandler.Register)
 	e.POST("/users/login", userHandler.Login)
 	e.GET("/users/:id", userHandler.GetByID)
@@ -59,6 +61,7 @@ func NewRouter(db *gorm.DB) *echo.Echo {
 
 	e.GET("/categories", categoryHandler.GetAll)
 	e.GET("/categories/:id", categoryHandler.GetByID)
+	e.GET("/categories/:id/subcategories", categoryHandler.GetSubcategories)
 	e.POST("/categories", categoryHandler.Create)
 	e.PUT("/categories/:id", categoryHandler.Update)
 	e.DELETE("/categories/:id", categoryHandler.Delete)

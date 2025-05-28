@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"go-ecommerce-api/internal/domain/model"
@@ -41,6 +42,22 @@ func (h *CategoryHandler) GetAll(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(http.StatusOK, categories)
+}
+
+func (h *CategoryHandler) GetSubcategories(c echo.Context) error {
+	id, err := parseUintParam(c, "id")
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid category ID")
+	}
+	filters := map[string]string{
+		"parent_id":          fmt.Sprint(id),
+		"with_subcategories": "1",
+	}
+	cats, err := h.Usecase.GetWithFilters(filters)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(http.StatusOK, cats)
 }
 
 func (h *CategoryHandler) Search(c echo.Context) error {
