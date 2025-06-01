@@ -12,11 +12,11 @@ type User struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	Email    string `json:"email" gorm:"size:100;uniqueIndex;not null"`
-	Password string `json:"-" gorm:"size:255;not null"`
-	Name     string `json:"name" gorm:"size:100;not null"`
-	Surname  string `json:"surname" gorm:"size:100;not null"`
-
+	Email     string  `json:"email" gorm:"size:100;uniqueIndex;not null"`
+	Password  string  `json:"-" gorm:"size:255;not null"`
+	Name      string  `json:"name" gorm:"size:100;not null"`
+	Surname   string  `json:"surname" gorm:"size:100;not null"`
+	Role      string  `json:"role" gorm:"size:20;not null;default:'user'"`
 	AddressID uint    `json:"address_id" gorm:"not null"`
 	Address   Address `json:"address" gorm:"foreignKey:AddressID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 

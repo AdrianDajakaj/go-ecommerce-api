@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"go-ecommerce-api/internal/domain/model"
+	"go-ecommerce-api/internal/infrastructure/auth"
 	"go-ecommerce-api/internal/usecase"
 
 	"github.com/labstack/echo/v4"
@@ -34,16 +35,29 @@ func (h *OrderHandler) GetOrder(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
+	uid, err := auth.UserIDFromContext(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+	}
+	role, err := auth.RoleFromContext(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+	}
+
+	if role != "admin" && order.UserID != uid {
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
+	}
+
 	return c.JSON(http.StatusOK, order)
 }
 
 func (h *OrderHandler) GetUserOrders(c echo.Context) error {
-	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 64)
+	uid, err := auth.UserIDFromContext(c)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid user ID")
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
 	}
 
-	orders, err := h.usecase.GetByUserID(uint(userID))
+	orders, err := h.usecase.GetByUserID(uid)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -52,20 +66,38 @@ func (h *OrderHandler) GetUserOrders(c echo.Context) error {
 }
 
 func (h *OrderHandler) GetAllOrders(c echo.Context) error {
+	role, err := auth.RoleFromContext(c)
+	if err != nil || role != "admin" {
+		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+	}
+
 	orders, err := h.usecase.GetAll()
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
-
 	return c.JSON(http.StatusOK, orders)
 }
 
 func (h *OrderHandler) Search(c echo.Context) error {
+	role, errRole := auth.RoleFromContext(c)
+	if errRole != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+	}
+
 	filters := map[string]string{}
-	for key, vals := range c.QueryParams() {
-		if len(vals) > 0 {
-			filters[key] = vals[0]
+
+	if role == "admin" {
+		for key, vals := range c.QueryParams() {
+			if len(vals) > 0 {
+				filters[key] = vals[0]
+			}
 		}
+	} else {
+		uid, errUID := auth.UserIDFromContext(c)
+		if errUID != nil {
+			return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+		}
+		filters["user_id"] = strconv.FormatUint(uint64(uid), 10)
 	}
 
 	orders, err := h.usecase.GetWithFilters(filters)
@@ -81,9 +113,9 @@ type createOrderRequest struct {
 }
 
 func (h *OrderHandler) CreateOrder(c echo.Context) error {
-	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 64)
+	uid, err := auth.UserIDFromContext(c)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid user ID")
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
 	}
 
 	var req createOrderRequest
@@ -91,7 +123,7 @@ func (h *OrderHandler) CreateOrder(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
 
-	order, err := h.usecase.CreateFromCart(uint(userID), req.PaymentMethod, req.ShippingAddressID)
+	order, err := h.usecase.CreateFromCart(uid, req.PaymentMethod, req.ShippingAddressID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return echo.NewHTTPError(http.StatusNotFound, err.Error())
 	}
@@ -110,6 +142,11 @@ func (h *OrderHandler) UpdateStatus(c echo.Context) error {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid order ID")
+	}
+
+	role, err := auth.RoleFromContext(c)
+	if err != nil || role != "admin" {
+		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
 	}
 
 	var req updateStatusRequest
@@ -134,7 +171,7 @@ func (h *OrderHandler) CancelOrder(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid order ID")
 	}
 
-	order, err := h.usecase.CancelOrder(uint(id))
+	order, err := h.usecase.GetByID(uint(id))
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return echo.NewHTTPError(http.StatusNotFound, "order not found")
 	}
@@ -142,5 +179,26 @@ func (h *OrderHandler) CancelOrder(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return c.JSON(http.StatusOK, order)
+	uid, err := auth.UserIDFromContext(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+	}
+	role, err := auth.RoleFromContext(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+	}
+
+	if role != "admin" && order.UserID != uid {
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
+	}
+
+	updatedOrder, err := h.usecase.CancelOrder(uint(id))
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return echo.NewHTTPError(http.StatusNotFound, "order not found")
+	}
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, updatedOrder)
 }

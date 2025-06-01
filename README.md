@@ -1,32 +1,29 @@
 # E-Commerce API Documentation
 
 ## Overview
-
-This project implements a Clean Architecture approach for an e-commerce system written in Go. It uses the Echo framework for HTTP routing and GORM as the ORM layer. The application operates on an SQLite database.
-
----
+This project implements a Clean Architecture approach for an e-commerce system written in Go. It uses the Echo framework for HTTP routing, GORM as the ORM layer, and SQLite as the database engine.
 
 ## Requirements
 
 - Go 1.20+
-- SQLite3 (wbudowany, nie wymaga osobnej instalacji)
+- SQLite3 (bundled, no separate installation required)
 
 ## Getting Started
 
-### 1. Download repository 
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/AdrianDajakaj/go-ecommerce-api.git
 cd go-ecommerce-api
 ```
 
-### 2. Install dependencies 
+### 2. Install dependencies
 
 ```bash
 go mod tidy
 ```
 
-### 3. Run server
+### 3. Run the server
 
 ```bash
 go run cmd/server.go
@@ -34,105 +31,60 @@ go run cmd/server.go
 
 Server will be available at: `http://localhost:8080`
 
-## Basic configuration
+## Configuration
 
-Basic configuration is in `cmd/server.go`:
+By default, the SQLite file is named `ecommerce.db` (in the project root).
 
-```go
-dsn := "ecommerce.db" // database name
-```
-
-To change the `server port`:
+- To change the database file, edit cmd/server.go:
 
 ```go
-e.Start(":8080") // change used port
+dsn := "ecommerce.db" 
 ```
 
-## Architecture
+- To change the HTTP port, adjust:
 
-```
-.
-├── README.md
-├── cmd
-│   └── server.go
-├── ecommerce.db
-├── go.mod
-├── go.sum
-└── internal
-    ├── domain
-    │   ├── model
-    │   │   ├── address.go
-    │   │   ├── cart.go
-    │   │   ├── cart_item.go
-    │   │   ├── category.go
-    │   │   ├── order.go
-    │   │   ├── order_item.go
-    │   │   ├── product.go
-    │   │   └── user.go
-    │   └── repository
-    │       ├── address_repository.go
-    │       ├── cart_item_repository.go
-    │       ├── cart_repository.go
-    │       ├── category_repository.go
-    │       ├── order_item_repository.go
-    │       ├── order_repository.go
-    │       ├── product_repository.go
-    │       └── user_repository.go
-    ├── infrastructure
-    │   └── persistence
-    │       ├── repository
-    │       │   ├── address_repository.go
-    │       │   ├── cart_item_repository.go
-    │       │   ├── cart_repository.go
-    │       │   ├── category_repository.go
-    │       │   ├── order_item_repository.go
-    │       │   ├── order_repository.go
-    │       │   ├── product_repository.go
-    │       │   └── user_repository.go
-    │       ├── scope
-    │       │   ├── cart_scope.go
-    │       │   ├── category_scope.go
-    │       │   ├── order_scope.go
-    │       │   ├── product_scope.go
-    │       │   └── user_scope.go
-    │       └── sqlite
-    │           └── gorm_db.go
-    ├── interface
-    │   └── http
-    │       ├── handler
-    │       │   ├── cart_handler.go
-    │       │   ├── category_handler.go
-    │       │   ├── order_handler.go
-    │       │   ├── product_handler.go
-    │       │   └── user_handler.go
-    │       └── router.go
-    └── usecase
-        ├── cart_usecase.go
-        ├── category_usecase.go
-        ├── order_usecase.go
-        ├── product_usecase.go
-        └── user_usecase.go
+```go
+e.Start(":8080")
 ```
 
----
+## Authentication & Authorization
 
-## Features
+This API is protected by JWT and role-based access control:
 
-* Clean Architecture structure
-* CRUD operations for Users, Products, Categories (with hierarchy), Carts, Orders
-* Cart management (Add, Update, Remove items)
-* Order placement and status tracking
-* GORM scopes for dynamic filtering via query parameters
+1. Register & Login
 
----
+- `POST /users/register`
+  - Creates a new user with role `"user"`.
+  - Extra fields like `"role"` in the JSON payload are ignored.
 
-## Base URL
+- POST `/users/login`
+  - Expects JSON:
+  ```json
+  { "email": "...", "password": "..." }
+  ```
+  - Returns a JSON Web Token (`token`) on success.
 
+2. Roles
+
+- Each user has a `role` field: `"user"` or `"admin"`.
+- By default, newly registered users get `"user"`.
+- To grant admin privileges, manually update the `role` in the SQLite database:
+```bash
+sqlite3 ecommerce.db <<SQL
+UPDATE users SET role = 'admin' WHERE email = 'admin@example.com';
+.exit
+SQL
 ```
-http://localhost:8080
-```
+- Endpoints requiring admin privileges will check the token’s `role`.
 
----
+3. JWT Middleware
+
+- Protected routes expect an `Authorization` header:
+```bash
+Authorization: <JWT_TOKEN>
+```
+- If the token is missing, invalid, or expired, the API returns `401 Unauthorized`.
+- If a user tries to access an admin-only endpoint without `"admin"` role, the API returns `403 Forbidden`.
 
 ## Data Models & JSON Samples
 
@@ -176,7 +128,7 @@ http://localhost:8080
 ```json
 {
   "name": "Electronics",
-  "parent_id": 1   
+  "parent_id": 1
 }
 ```
 
@@ -198,1605 +150,749 @@ http://localhost:8080
 }
 ```
 
----
-
 ## Endpoint Patterns
-
-Each model exposes standardized RESTful endpoints:
 
 ### Users
 
-* `POST    /users/register` – Register new user
-* `POST    /users/login` – Authenticate user
-* `GET     /users` – Get all users
-* `GET     /users/{id}` – Get user by ID
-* `GET     /users/search?...` – Search users using query parameters (with scopes)
-* `PUT     /users/{id}` – Update user
-* `DELETE  /users/{id}` – Delete user
+| Method | Path              | Protected? | Roles Allowed    | Description                                     |
+| ------ | ----------------- | ---------- | ---------------- | ----------------------------------------------- |
+| POST   | `/users/register` | No         | —                | Register new user (`role` defaults to `"user"`) |
+| POST   | `/users/login`    | No         | —                | Login and receive JWT                           |
+| GET    | `/users`          | Yes (JWT)  | `admin`          | Get all users                                   |
+| GET    | `/users/{id}`     | Yes (JWT)  | `admin` or owner | Get user by ID                                  |
+| GET    | `/users/search?…` | Yes (JWT)  | `admin`          | Search users with query parameters              |
+| PUT    | `/users/{id}`     | Yes (JWT)  | `admin` or owner | Update user profile                             |
+| DELETE | `/users/{id}`     | Yes (JWT)  | `admin` or owner | Delete user                                     |
 
-### Categories
+### Catehories
 
-* `POST    /categories` – Create category
-* `GET     /categories` – Get all categories
-* `GET     /categories/{id}` – Get category by ID
-* `GET     /categories/search?...` – Search categories using query parameters (with scopes)
-* `GET /categories/{id}/subcategories` - Get all subcategories for given category
-* `PUT     /categories/{id}` – Update category
-* `DELETE  /categories/{id}` – Delete category
+| Method | Path                             | Protected? | Roles Allowed | Description                             |
+| ------ | -------------------------------- | ---------- | ------------- | --------------------------------------- |
+| GET    | `/categories`                    | No         | —             | Get all categories                      |
+| GET    | `/categories/{id}`               | No         | —             | Get category by ID                      |
+| GET    | `/categories/{id}/subcategories` | No         | —             | Get subcategories of a category         |
+| GET    | `/categories/search?…`           | No         | —             | Search categories with query parameters |
+| POST   | `/categories`                    | Yes (JWT)  | `admin`       | Create new category                     |
+| PUT    | `/categories/{id}`               | Yes (JWT)  | `admin`       | Update category                         |
+| DELETE | `/categories/{id}`               | Yes (JWT)  | `admin`       | Delete category                         |
 
 ### Products
 
-* `POST    /products` – Create product
-* `GET     /products` – Get all products
-* `GET     /products/{id}` – Get product by ID
-* `GET     /products/search?...` – Search products using query parameters (with scopes)
-* `PUT     /products/{id}` – Update product
-* `DELETE  /products/{id}` – Delete product
+| Method | Path                 | Protected? | Roles Allowed | Description                           |
+| ------ | -------------------- | ---------- | ------------- | ------------------------------------- |
+| GET    | `/products`          | No         | —             | Get all products                      |
+| GET    | `/products/{id}`     | No         | —             | Get product by ID                     |
+| GET    | `/products/search?…` | No         | —             | Search products with query parameters |
+| POST   | `/products`          | Yes (JWT)  | `admin`       | Create new product                    |
+| PUT    | `/products/{id}`     | Yes (JWT)  | `admin`       | Update product                        |
+| DELETE | `/products/{id}`     | Yes (JWT)  | `admin`       | Delete product                        |
 
 ### Carts
 
-* `GET     /cart/{user_id}` – Get cart by user
-* `GET     /cart/search?...` – Search carts with filters (scopes)
-* `POST    /cart/{user_id}/add` – Add product to cart
-* `PUT     /cart/item/{item_id}` – Update cart item quantity
-* `DELETE  /cart/item/{item_id}` – Remove item
-* `DELETE  /cart/{user_id}/clear` – Clear entire cart
+All `/cart` endpoints require JWT.
+- Regular users see/modify only their own cart items.
+- Admin can also filter/search all carts.
+
+| Method | Path                   | Protected? | Roles Allowed     | Description                                       |
+| ------ | ---------------------- | ---------- | ----------------- | ------------------------------------------------- |
+| GET    | `/cart`                | Yes (JWT)  | `user` or `admin` | Get authenticated user's cart                     |
+| POST   | `/cart/add`            | Yes (JWT)  | `user` or `admin` | Add product to authenticated user's cart          |
+| PUT    | `/cart/item/{item_id}` | Yes (JWT)  | `user` or `admin` | Update quantity of a cart item (owner/admin only) |
+| DELETE | `/cart/item/{item_id}` | Yes (JWT)  | `user` or `admin` | Remove a cart item (owner/admin only)             |
+| DELETE | `/cart/clear`          | Yes (JWT)  | `user` or `admin` | Clear authenticated user's cart                   |
+| GET    | `/cart/search?…`       | Yes (JWT)  | `user` or `admin` | Search carts: admin sees all; user sees own only  |
 
 ### Orders
 
-* `POST    /users/{user_id}/orders` – Create order from cart
-* `GET     /orders` – Get all orders
-* `GET     /orders/{id}` – Get order by ID
-* `GET     /users/{user_id}/orders` – Get all User's orders
-* `GET     /orders/search?...` – Search orders (via scopes)
-* `PUT     /orders/{id}/status` – Update status
-* `PUT     /orders/{id}/cancel` – Cancel order
+All `/orders` endpoints require JWT.
+- `GetOrder`, `CancelOrder` check ownership or admin.
+- `UpdateStatus` only for admin.
+- `Search` for users always filters to their own orders (ignores `user_id`)`; admin can search all.
 
----
+| Method | Path                  | Protected? | Roles Allowed      | Description                                           |
+| ------ | --------------------- | ---------- | ------------------ | ----------------------------------------------------- |
+| POST   | `/orders`             | Yes (JWT)  | `user` or `admin`  | Create order from authenticated user's cart           |
+| GET    | `/orders/{id}`        | Yes (JWT)  | `owner` or `admin` | Get order by ID (owner or admin only)                 |
+| GET    | `/orders`             | Yes (JWT)  | `admin`            | Get all orders                                        |
+| GET    | `/orders/user`        | Yes (JWT)  | `user` or `admin`  | Get authenticated user's orders (admin sees only own) |
+| PUT    | `/orders/{id}/status` | Yes (JWT)  | `admin`            | Update order status                                   |
+| PUT    | `/orders/{id}/cancel` | Yes (JWT)  | `owner` or `admin` | Cancel order (owner or admin; owner only if pending)  |
+| GET    | `/orders/search?…`    | Yes (JWT)  | `user` or `admin`  | Search orders: admin sees all; user sees own only     |
 
-## Scopes (Filtering with Query Parameters)
+## Scopes (Filtering via Query Parameters)
+
+These scopes apply to `search` endpoints:
 
 ### User Scopes
-
-* `email=<value>` — filter users by exact email  
-* `name=<value>` — filter users by first name (contains)  
-* `surname=<value>` — filter users by surname (contains)  
-* `country=<value>` — filter users by country (exact)  
-* `city=<value>` — filter users by city (exact)  
+- `email=<value>` — exact match
+- `name=<value>` — contains
+- `surname=<value>` — contains
+- `country=<value>` — exact
+- `city=<value>` — exact
 
 ### Product Scopes
-
-* `name=<value>` — search products whose name contains the given string  
-* `category_id=<id>` — filter products by their category ID  
-* `is_active=<true|false>` — filter products by active status  
-* `price_min=<n>&price_max=<m>` — filter products within a price range  
-* `with_category=true` — eager-load and include each product’s Category object in the response  
+- `name=<value>` — contains
+- `category_id=<id>` — exact
+- `is_active=<true|false>` — exact
+- `price_min=<n>&price_max=<m>` — range
+- `with_category=true` — eager-load Category object
 
 ### Category Scopes
-
-* `name=<value>` — search categories whose name contains the given string  
-* `created_after=<RFC3339 timestamp>` — filter categories created on or after the given date  
-* `created_before=<RFC3339 timestamp>` — filter categories created on or before the given date  
-* `min_products=<n>` — filter categories having at least _n_ products  
-* `parent_id=<id>` — filter categories whose parent category ID equals the given value  
-* `with_products=true` — eager-load and include each category’s Products array in the response  
-* `with_subcategories=true` — eager-load and include each category’s Subcategories array in the response  
+- `name=<value>` — contains
+- `created_after=<RFC3339 timestamp>` — ≥ date
+- `created_before=<RFC3339 timestamp>` — ≤ date
+- `min_products=<n>` — minimum number of products
+- `parent_id=<id>` — exact
+- `with_products=true` — eager-load Products array
+- `with_subcategories=true` — eager-load Subcategories array
 
 ### Order Scopes
-
-* `user_id=<id>` — filter orders by the ID of the user who placed them  
-* `status=<value>` — filter orders by status (e.g. `PENDING`, `PAID`, `CANCELLED`)  
-* `created_after=<RFC3339 timestamp>` — filter orders created on or after the given date  
-* `total_min=<n>&total_max=<m>` — filter orders whose total is within the given range  
+- `user_id=<id>` — exact (ignored for regular users)
+- `status=<value>` — exact (e.g., PENDING, PAID, CANCELLED)
+- `created_after=<RFC3339 timestamp>` — ≥ date
+- `total_min=<n>&total_max=<m>` — range
 
 ### Cart Scopes
+- `user_id=<id>` — exact (ignored for regular users)
+- `total_min=<n>&total_max=<m>` — range
+- `created_before=<RFC3339 timestamp>` — ≤ date
 
-* `user_id=<id>` — filter carts by the ID of the owning user  
-* `total_min=<n>&total_max=<m>` — filter carts whose total (sum of items) is within the given range  
-* `created_before=<RFC3339 timestamp>` — filter carts created on or before the given date  
+## cURL Examples (with JWT & Roles)
 
+Below are example flows demonstrating registration, role assignment, and protected endpoint usage. Replace `localhost:8080` if your server runs on a different host/port.
 
----
+### 1. Register & Login
+  1. Register two users (both default to `role = "user"`)
 
-## cURL Examples With Responses
-
-### 🧑 User – cURL Examples with Responses
-
-1. 🔐 Register a New User
-
-- **Request**
-
-```bash
-curl -X POST -i http://localhost:8080/users/register \
+  ```bash
+  # Register `admin@example.com`
+  curl -s -X POST http://localhost:8080/users/register \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "john@example.com",
-    "password": "secure123",
-    "name": "John",
-    "surname": "Doe",
+    "email": "admin@example.com",
+    "password": "Password123!",
+    "name": "Jan",
+    "surname": "Nowak",
     "address": {
-      "country": "USA",
-      "city": "New York",
-      "postcode": "10001",
-      "street": "Broadway",
-      "number": "1"
+      "street": "Ul. Przykładowa 1",
+      "city": "Warszawa",
+      "zip": "00-001",
+      "country": "PL"
     }
-  }'
-```
+  }' | jq
 
-- **Response**
-
-<pre> <code>HTTP/1.1 201 Created
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:02:58 GMT
-Content-Length: 390 </code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:02:58.197805299+02:00",
-  "updated_at": "2025-05-24T23:02:58.197805299+02:00",
-  "email": "john@example.com",
-  "name": "John",
-  "surname": "Doe",
-  "address_id": 1,
-  "address": {
-    "id": 1,
-    "created_at": "2025-05-24T23:02:58.139428936+02:00",
-    "updated_at": "2025-05-24T23:02:58.139428936+02:00",
-    "country": "USA",
-    "city": "New York",
-    "postcode": "10001",
-    "street": "Broadway",
-    "number": "1"
-  }
-}
-```
-
-2. 🔓 Login
-
-- **Request**
-
-```bash
-curl -X POST -i http://localhost:8080/users/login \
+  # Register `user@example.com`
+  curl -s -X POST http://localhost:8080/users/register \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "john@example.com",
-    "password": "secure123"
-  }'
-```
-
-- **Response**
-
-<pre> <code>HTTP/1.1 200 OK Content-Type: application/json Date: Sat, 24 May 2025 21:03:54 GMT Content-Length: 390 </code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:02:58.197805299+02:00",
-  "updated_at": "2025-05-24T23:02:58.197805299+02:00",
-  "email": "john@example.com",
-  "name": "John",
-  "surname": "Doe",
-  "address_id": 1,
-  "address": {
-    "id": 1,
-    "created_at": "2025-05-24T23:02:58.139428936+02:00",
-    "updated_at": "2025-05-24T23:02:58.139428936+02:00",
-    "country": "USA",
-    "city": "New York",
-    "postcode": "10001",
-    "street": "Broadway",
-    "number": "1"
-  }
-}
-```
-
-3. 📄 Get All Users
-
-- **Request**
-
-```bash
-curl -i http://localhost:8080/users
-```
-
-- **Response**
-
-<pre> <code>HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:07:31 GMT
-Content-Length: 392 </code> </pre>
-
-```json
-[
-  {
-    "id": 1,
-    "created_at": "2025-05-24T23:02:58.197805299+02:00",
-    "updated_at": "2025-05-24T23:02:58.197805299+02:00",
-    "email": "john@example.com",
-    "name": "John",
-    "surname": "Doe",
-    "address_id": 1,
+    "email": "user@example.com",
+    "password": "Password123!",
+    "name": "Anna",
+    "surname": "Kowalska",
     "address": {
-      "id": 1,
-      "created_at": "2025-05-24T23:02:58.139428936+02:00",
-      "updated_at": "2025-05-24T23:02:58.139428936+02:00",
-      "country": "USA",
-      "city": "New York",
-      "postcode": "10001",
-      "street": "Broadway",
-      "number": "1"
+      "street": "Ul. Przykładowa 2",
+      "city": "Kraków",
+      "zip": "31-002",
+      "country": "PL"
     }
-  }
-]
-```
+  }' | jq
+  ```
 
-4. 🔍 Get User by ID
+  2. Manually grant admin role in SQLite
 
-- **Request**
+  ```bash
+  sqlite3 ecommerce.db <<SQL
+  UPDATE users SET role = 'admin' WHERE email = 'admin@example.com';
+  .exit
+  SQL
+  ```
 
-```bash
-curl http://localhost:8080/users/1
-```
+  3. Login both users and capture tokens
 
-- **Response**
+  ```bash
+  # Login as admin
+  export ADMIN_TOKEN=$(
+    curl -s -X POST http://localhost:8080/users/login \
+      -H "Content-Type: application/json" \
+      -d '{"email":"admin@example.com","password":"Password123!"}' \
+      | jq -r .token
+  )
 
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:08:29 GMT
-Content-Length: 390
-</code> </pre>
+  # Login as regular user
+  export USER_TOKEN=$(
+    curl -s -X POST http://localhost:8080/users/login \
+      -H "Content-Type: application/json" \
+      -d '{"email":"user@example.com","password":"Password123!"}' \
+      | jq -r .token
+  )
 
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:02:58.197805299+02:00",
-  "updated_at": "2025-05-24T23:02:58.197805299+02:00",
-  "email": "john@example.com",
-  "name": "John",
-  "surname": "Doe",
-  "address_id": 1,
-  "address": {
-    "id": 1,
-    "created_at": "2025-05-24T23:02:58.139428936+02:00",
-    "updated_at": "2025-05-24T23:02:58.139428936+02:00",
-    "country": "USA",
-    "city": "New York",
-    "postcode": "10001",
-    "street": "Broadway",
-    "number": "1"
-  }
-}
-```
-5. 🧭 Search Users (With Scopes)
+  echo "ADMIN_TOKEN:  $ADMIN_TOKEN"
+  echo "USER_TOKEN:   $USER_TOKEN"
+  ```
 
-- **Request**
+### 2. User Endpoints
+
+1. `GET /users/{id}`
+- Admin can fetch any user
+- Regular user can fetch only their own ID (others → 403)
+- No token → 401
 
 ```bash
-curl -i "http://localhost:8080/users/search?country=USA&city=New%20York"
+# Assume `admin@example.com` has id=1, `user@example.com` has id=2
+
+# Admin fetches user id=2  → 200
+curl -s -X GET http://localhost:8080/users/2 \
+  -H "Authorization: $ADMIN_TOKEN" \
+  | jq
+
+# Regular user fetches admin (id=1) → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X GET http://localhost:8080/users/1 \
+  -H "Authorization: $USER_TOKEN"
+
+# Regular user fetches own profile (id=2) → 200
+curl -s -X GET http://localhost:8080/users/2 \
+  -H "Authorization: $USER_TOKEN" \
+  | jq
 ```
 
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:10:27 GMT
-Content-Length: 392
-</code> </pre>
-
-```json
-[
-  {
-    "id": 1,
-    "created_at": "2025-05-24T23:02:58.197805299+02:00",
-    "updated_at": "2025-05-24T23:02:58.197805299+02:00",
-    "email": "john@example.com",
-    "name": "John",
-    "surname": "Doe",
-    "address_id": 1,
-    "address": {
-      "id": 1,
-      "created_at": "2025-05-24T23:02:58.139428936+02:00",
-      "updated_at": "2025-05-24T23:02:58.139428936+02:00",
-      "country": "USA",
-      "city": "New York",
-      "postcode": "10001",
-      "street": "Broadway",
-      "number": "1"
-    }
-  }
-]
-```
-
-6. 📝 Update User
-
-- **Request**
+2. GET `/users`
+- Admin → 200 + list of all users
+- Regular user → 403
+- No token → 401
 
 ```bash
-curl -X PUT http://localhost:8080/users/1 \
+# Admin fetches all users → 200
+curl -s -X GET http://localhost:8080/users \
+  -H "Authorization: $ADMIN_TOKEN" \
+  | jq
+
+# Regular user tries → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X GET http://localhost:8080/users \
+  -H "Authorization: $USER_TOKEN"
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X GET http://localhost:8080/users
+```
+
+3. GET `/users/search?…`
+- Admin can search (e.g. ?email=user@example.com)
+- Regular user → 403
+- No token → 401
+
+```bash
+# Admin searches by email → 200
+curl -s -X GET 'http://localhost:8080/users/search?email=user@example.com' \
+  -H "Authorization: $ADMIN_TOKEN" \
+  | jq
+
+# Regular user tries → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X GET 'http://localhost:8080/users/search?name=Anna' \
+  -H "Authorization: $USER_TOKEN"
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X GET 'http://localhost:8080/users/search?name=Anna'
+```
+
+4. PUT `/users/{id}`
+- Admin can update any user
+- Regular user can update only their own profile
+- No token → 401
+
+```bash
+# Admin updates user id=2  → 200
+curl -s -X PUT http://localhost:8080/users/2 \
+  -H "Authorization: $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "john.doe@example.com",
-    "name": "Johnathan",
-    "surname": "Doe"
-  }'
+    "name": "Anna-Edytowana", 
+    "surname": "Kowalska-Nowa", 
+    "email": "user@example.com" 
+  }' | jq
 
-```
+# Regular user tries to update admin (id=1) → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X PUT http://localhost:8080/users/1 \
+  -H "Authorization: $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Zly","surname":"Zmiana"}'
 
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:12:49 GMT
-Content-Length: 328
-</code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "0001-01-01T00:00:00Z",
-  "updated_at": "2025-05-24T23:11:32.979252277+02:00",
-  "email": "john.doe@example.com",
-  "name": "Johnathan",
-  "surname": "Doe",
-  "address_id": 0,
-  "address": {
-    "id": 0,
-    "created_at": "0001-01-01T00:00:00Z",
-    "updated_at": "0001-01-01T00:00:00Z",
-    "country": "",
-    "city": "",
-    "postcode": "",
-    "street": "",
-    "number": ""
-  }
-}
-```
-
-7. ❌ Delete User
-
-- **Request**
-
-```bash
-curl -X -i DELETE http://localhost:8080/users/1
-```
-
-- **Response**
-
-<pre> <code>
-HTTP/1.1 204 No Content
-</code> </pre>
-
-### 📂 Category – cURL Examples with Responses
-
-1. ➕ Create Category
-
-- **Request**
-
-```bash
-curl -X POST -i http://localhost:8080/categories \
+# Regular user updates own profile (id=2) → 200
+curl -s -X PUT http://localhost:8080/users/2 \
+  -H "Authorization: $USER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Electronics"
-  }'
+    "name": "Anna-Nowa",
+    "surname": "Kowalska-Nowa",
+    "email": "user@example.com"
+  }' | jq
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X PUT http://localhost:8080/users/2 \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Anna","surname":"X"}'
 ```
 
-- **Response**
-
-<pre> <code>
-HTTP/1.1 201 Created
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:13:39 GMT
-Content-Length: 132
-</code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:13:39.187374675+02:00",
-  "updated_at": "2025-05-24T23:13:39.187374675+02:00",
-  "name": "Electronics"
-}
-```
-
-2. 📄 Get All Categories
-
-- **Request**
+5. DELETE `/users/{id}`
+- Admin can delete any user
+- Regular user can delete only their own account
+- No token → 401
 
 ```bash
-curl -i http://localhost:8080/categories
+# Regular user tries to delete admin (id=1) → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/users/1 \
+  -H "Authorization: $USER_TOKEN"
+
+# Regular user deletes own account (id=2) → 204
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/users/2 \
+  -H "Authorization: $USER_TOKEN"
+
+# Admin deletes a user (id=2) → 204
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/users/2 \
+  -H "Authorization: $ADMIN_TOKEN"
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/users/1
 ```
 
-- **Response**
+### 3. Category Endpoints
 
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:15:03 GMT
-Content-Length: 134
-</code> </pre>
-
-```json
-[
-  {
-    "id": 1,
-    "created_at": "2025-05-24T23:13:39.187374675+02:00",
-    "updated_at": "2025-05-24T23:13:39.187374675+02:00",
-    "name": "Electronics"
-  }
-]
-```
-
-3. 🔍 Get Category by ID
-
-- **Request**
+1. Public GETs
 
 ```bash
-curl -i http://localhost:8080/categories/1
+# Get all categories → 200
+curl -s -X GET http://localhost:8080/categories | jq
+
+# Get category by id=1 → 200 or 404
+curl -s -X GET http://localhost:8080/categories/1 | jq
+
+# Get subcategories (id=1) → 200 or 404
+curl -s -X GET http://localhost:8080/categories/1/subcategories | jq
+
+# Search categories (e.g. name=Electronics) → 200
+curl -s -X GET 'http://localhost:8080/categories/search?name=Electronics' | jq
 ```
 
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:15:55 GMT
-Content-Length: 132
-</code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:13:39.187374675+02:00",
-  "updated_at": "2025-05-24T23:13:39.187374675+02:00",
-  "name": "Electronics"
-}
-```
-
-4. 🧭 Search Categories (Scopes)
-
-- **Request**
+2. Protected POST/PUT/DELETE (admin only)
 
 ```bash
-curl -i "http://localhost:8080/categories/search?name=Electronics&with_products=true"
-```
-
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:16:38 GMT
-Content-Length: 134
-</code> </pre>
-
-```json
-[
-  {
-    "id": 1,
-    "created_at": "2025-05-24T23:13:39.187374675+02:00",
-    "updated_at": "2025-05-24T23:13:39.187374675+02:00",
-    "name": "Electronics"
-  }
-]
-```
-
-5. 📝 Update Category
-
-- **Request**
-
-```bash
-curl -X PUT http://localhost:8080/categories/1 \
+# Admin creates a new category → 201
+curl -s -X POST http://localhost:8080/categories \
+  -H "Authorization: $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Consumer Electronics"
-  }'
-```
+    "name": "Elektronika",
+    "description": "Sprzęt elektroniczny"
+  }' | jq
 
-- **Response**
+# Assume new category id = 1
 
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:17:36 GMT
-Content-Length: 126
-</code> </pre>
+# Regular user tries → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8080/categories \
+  -H "Authorization: $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Zabawki","description":"Dla dzieci"}'
 
-```json
-{
-  "id": 1,
-  "created_at": "0001-01-01T00:00:00Z",
-  "updated_at": "2025-05-24T23:17:36.640609459+02:00",
-  "name": "Consumer Electronics"
-}
-```
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8080/categories \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Zabawki","description":"Dla dzieci"}'
 
-6. ❌ Delete Category
-
-- **Request**
-
-```bash
-curl -X DELETE http://localhost:8080/categories/1
-```
-
-- **Response**
-
-<pre> <code>
-HTTP/1.1 204 No Content
-</code> </pre>
-
-### 🛍️ Product – cURL Examples with Responses
-
-1. ➕ Create Product
-
-- **Request**
-
-```bash
-curl -X POST -i http://localhost:8080/products \
+# Admin updates category id=1 → 200
+curl -s -X PUT http://localhost:8080/categories/1 \
+  -H "Authorization: $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Phone",
-    "description": "Smartphone with AMOLED display",
-    "price": 299.99,
-    "stock": 100,
-    "is_active": true,
+    "name": "Elektronika RTV",
+    "description": "Telewizory, głośniki, itp."
+  }' | jq
+
+# Regular user tries → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X PUT http://localhost:8080/categories/1 \
+  -H "Authorization: $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Błędna","description":"Zła"}'
+
+# Admin deletes category id=1 → 204
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/categories/1 \
+  -H "Authorization: $ADMIN_TOKEN"
+
+# Regular user tries → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/categories/1 \
+  -H "Authorization: $USER_TOKEN"
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/categories/1
+```
+
+### 4. Product Endpoints
+
+1. Public GETs
+
+```bash
+# Get all products → 200
+curl -s -X GET http://localhost:8080/products | jq
+
+# Get product by id=1 → 200 or 404
+curl -s -X GET http://localhost:8080/products/1 | jq
+
+# Search products (e.g. category_id=1, price range) → 200
+curl -s -X GET 'http://localhost:8080/products/search?category_id=1&price_min=100&price_max=500&name=phone' | jq
+```
+
+2. Protected POST/PUT/DELETE (admin only)
+
+```bash
+# Admin creates a product → 201
+curl -s -X POST http://localhost:8080/products \
+  -H "Authorization: $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Laptop ASUS",
+    "description": "Laptop do pracy",
+    "price": 3500,
     "category_id": 1,
-    "images": [
-      { "url": "https://example.com/images/phone-front.jpg" },
-      { "url": "https://example.com/images/phone-back.jpg" }
-    ]
-  }'
-```
+    "stock": 10
+  }' | jq
 
-- **Response**
+# Assume new product id = 1
 
-<pre> <code>
-HTTP/1.1 201 Created
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:18:58 GMT
-Content-Length: 734
-</code> </pre>
+# Regular user tries → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8080/products \
+  -H "Authorization: $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"ZłyProdukt","description":"Brak","price":1,"category_id":1,"stock":5}'
 
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:18:58.601529769+02:00",
-  "updated_at": "2025-05-24T23:18:58.601529769+02:00",
-  "name": "Phone",
-  "description": "Smartphone with AMOLED display",
-  "price": 299.99,
-  "stock": 100,
-  "is_active": true,
-  "category_id": 1,
-  "category": {
-    "id": 1,
-    "created_at": "0001-01-01T00:00:00Z",
-    "updated_at": "2025-05-24T23:17:36.640609459+02:00",
-    "name": "Consumer Electronics"
-  },
-  "images": [
-    {
-      "id": 1,
-      "created_at": "2025-05-24T23:18:58.602234769+02:00",
-      "updated_at": "2025-05-24T23:18:58.602234769+02:00",
-      "url": "https://example.com/images/phone-front.jpg",
-      "product_id": 1
-    },
-    {
-      "id": 2,
-      "created_at": "2025-05-24T23:18:58.602234769+02:00",
-      "updated_at": "2025-05-24T23:18:58.602234769+02:00",
-      "url": "https://example.com/images/phone-back.jpg",
-      "product_id": 1
-    }
-  ]
-}
-```
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8080/products \
+  -H "Content-Type: application/json" \
+  -d '{"name":"ZłyProdukt","description":"Brak","price":1,"category_id":1,"stock":5}'
 
-2. 📄 Get All Products
-
-- **Request**
-
-```bash
-curl -i http://localhost:8080/products
-```
-
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:20:06 GMT
-Content-Length: 736
-</code> </pre>
-
-```json
-[
-  {
-    "id": 1,
-    "created_at": "2025-05-24T23:18:58.601529769+02:00",
-    "updated_at": "2025-05-24T23:18:58.601529769+02:00",
-    "name": "Phone",
-    "description": "Smartphone with AMOLED display",
-    "price": 299.99,
-    "stock": 100,
-    "is_active": true,
+# Admin updates product id=1 → 200
+curl -s -X PUT http://localhost:8080/products/1 \
+  -H "Authorization: $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Laptop ASUS ROG",
+    "description": "Gamingowy laptop",
+    "price": 4500,
     "category_id": 1,
-    "category": {
-      "id": 1,
-      "created_at": "0001-01-01T00:00:00Z",
-      "updated_at": "2025-05-24T23:17:36.640609459+02:00",
-      "name": "Consumer Electronics"
-    },
-    "images": [
-      {
-        "id": 1,
-        "created_at": "2025-05-24T23:18:58.602234769+02:00",
-        "updated_at": "2025-05-24T23:18:58.602234769+02:00",
-        "url": "https://example.com/images/phone-front.jpg",
-        "product_id": 1
-      },
-      {
-        "id": 2,
-        "created_at": "2025-05-24T23:18:58.602234769+02:00",
-        "updated_at": "2025-05-24T23:18:58.602234769+02:00",
-        "url": "https://example.com/images/phone-back.jpg",
-        "product_id": 1
-      }
-    ]
-  }
-]
+    "stock": 7
+  }' | jq
+
+# Regular user tries → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X PUT http://localhost:8080/products/1 \
+  -H "Authorization: $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"X","description":"Y","price":1,"category_id":1,"stock":5}'
+
+# Admin deletes product id=1 → 204
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/products/1 \
+  -H "Authorization: $ADMIN_TOKEN"
+
+# Regular user tries → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/products/1 \
+  -H "Authorization: $USER_TOKEN"
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/products/1
 ```
 
-3. 🔍 Get Product by ID
+### 5. Cart Endpoints (require JWT)
 
-- **Request**
+Endpoints under `/cart` always require a valid JWT.
+
+1. GET `/cart`
+- Regular user → their own cart (200)
+- Admin → their own (empty) cart (200)
+- No token → 401
 
 ```bash
-curl -i http://localhost:8080/products/1
+# Regular user fetches their cart → 200
+curl -s -X GET http://localhost:8080/cart \
+  -H "Authorization: $USER_TOKEN" \
+  | jq
+
+# Admin fetches their cart → 200
+curl -s -X GET http://localhost:8080/cart \
+  -H "Authorization: $ADMIN_TOKEN" \
+  | jq
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X GET http://localhost:8080/cart
 ```
-
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:21:01 GMT
-Content-Length: 734
-</code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:18:58.601529769+02:00",
-  "updated_at": "2025-05-24T23:18:58.601529769+02:00",
-  "name": "Phone",
-  "description": "Smartphone with AMOLED display",
-  "price": 299.99,
-  "stock": 100,
-  "is_active": true,
-  "category_id": 1,
-  "category": {
-    "id": 1,
-    "created_at": "0001-01-01T00:00:00Z",
-    "updated_at": "2025-05-24T23:17:36.640609459+02:00",
-    "name": "Consumer Electronics"
-  },
-  "images": [
-    {
-      "id": 1,
-      "created_at": "2025-05-24T23:18:58.602234769+02:00",
-      "updated_at": "2025-05-24T23:18:58.602234769+02:00",
-      "url": "https://example.com/images/phone-front.jpg",
-      "product_id": 1
-    },
-    {
-      "id": 2,
-      "created_at": "2025-05-24T23:18:58.602234769+02:00",
-      "updated_at": "2025-05-24T23:18:58.602234769+02:00",
-      "url": "https://example.com/images/phone-back.jpg",
-      "product_id": 1
-    }
-  ]
-}
-```
-
-4. 🧭 Search Products (Scopes)
-
-- **Request**
+2. POST `/cart/add`
+- Add an item to the authenticated user’s cart. Requires JWT.
 
 ```bash
-curl -i "http://localhost:8080/products/search?category_id=1&is_active=true&price_min=100&price_max=500&name=phone"
+# Regular user adds product id=1 to cart → 200
+curl -s -X POST http://localhost:8080/cart/add \
+  -H "Authorization: $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"product_id": 1, "quantity": 2}' | jq
+
+# Admin adds product id=1 to their cart → 200
+curl -s -X POST http://localhost:8080/cart/add \
+  -H "Authorization: $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"product_id": 1, "quantity": 1}' | jq
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8080/cart/add \
+  -H "Content-Type: application/json" \
+  -d '{"product_id": 1, "quantity": 1}'
 ```
 
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:21:45 GMT
-Content-Length: 736
-</code> </pre>
-
-```json
-[
-  {
-    "id": 1,
-    "created_at": "2025-05-24T23:18:58.601529769+02:00",
-    "updated_at": "2025-05-24T23:18:58.601529769+02:00",
-    "name": "Phone",
-    "description": "Smartphone with AMOLED display",
-    "price": 299.99,
-    "stock": 100,
-    "is_active": true,
-    "category_id": 1,
-    "category": {
-      "id": 1,
-      "created_at": "0001-01-01T00:00:00Z",
-      "updated_at": "2025-05-24T23:17:36.640609459+02:00",
-      "name": "Consumer Electronics"
-    },
-    "images": [
-      {
-        "id": 1,
-        "created_at": "2025-05-24T23:18:58.602234769+02:00",
-        "updated_at": "2025-05-24T23:18:58.602234769+02:00",
-        "url": "https://example.com/images/phone-front.jpg",
-        "product_id": 1
-      },
-      {
-        "id": 2,
-        "created_at": "2025-05-24T23:18:58.602234769+02:00",
-        "updated_at": "2025-05-24T23:18:58.602234769+02:00",
-        "url": "https://example.com/images/phone-back.jpg",
-        "product_id": 1
-      }
-    ]
-  }
-]
-```
-
-5. 📝 Update Product
-
-- **Request**
+3. PUT `/cart/item/{item_id}`
+- Update quantity of a specific cart item.
+- Owner or admin may update; others → 403.
+- No token → 401.
 
 ```bash
-curl -X PUT -i http://localhost:8080/products/1 \
+# Assume cart item id=1 belongs to user id=2
+
+# Regular user updates their item (id=1) → 200
+curl -s -X PUT http://localhost:8080/cart/item/1 \
+  -H "Authorization: $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"quantity": 5}' | jq
+
+# Regular user tries to update admin’s item (id=2) → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X PUT http://localhost:8080/cart/item/2 \
+  -H "Authorization: $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"quantity": 2}'
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X PUT http://localhost:8080/cart/item/1 \
+  -H "Content-Type: application/json" \
+  -d '{"quantity": 2}'
+```
+
+4. DELETE `/cart/item/{item_id}`
+- Remove a cart item.
+- Owner or admin allowed; others → 403.
+- No token → 401.
+
+```bash
+# Regular user removes their item (id=1) → 204
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/cart/item/1 \
+  -H "Authorization: $USER_TOKEN"
+
+# Regular user tries to remove admin’s item (id=2) → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/cart/item/2 \
+  -H "Authorization: $USER_TOKEN"
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/cart/item/1
+```
+
+5. DELETE `/cart/clear`
+- Clear authenticated user’s cart.
+- No token → 401.
+
+```bash
+# Regular user clears cart → 204
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/cart/clear \
+  -H "Authorization: $USER_TOKEN"
+
+# Admin clears cart (likely empty) → 204
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/cart/clear \
+  -H "Authorization: $ADMIN_TOKEN"
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE http://localhost:8080/cart/clear
+```
+
+6. GET `/cart/search?…`
+- Admin can filter any user’s carts (e.g. ?user_id=2).
+- Regular user always sees only their own (ignores user_id).
+- No token → 401.
+
+```bash
+# Admin searches all carts (user_id=2, total_max=1000) → 200
+curl -s -X GET 'http://localhost:8080/cart/search?user_id=2&total_max=1000' \
+  -H "Authorization: $ADMIN_TOKEN" | jq
+
+# Regular user tries to filter by user_id=1 → sees only their own
+curl -s -X GET 'http://localhost:8080/cart/search?user_id=1' \
+  -H "Authorization: $USER_TOKEN" | jq
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X GET 'http://localhost:8080/cart/search?user_id=2'
+```
+
+### 6. Order Endpoints (require JWT)
+All `/orders` endpoints require a valid JWT.
+
+Precondition
+- Each user’s cart must contain items to create an order.
+- Assume user id=2 has a cart with some items; admin id=1 similarly.
+
+1. POST `/orders`
+- Create an order from the authenticated user’s cart.
+- No token → 401.
+
+```bash
+# Regular user creates an order → 201
+curl -s -X POST http://localhost:8080/orders \
+  -H "Authorization: $USER_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Updated Phone",
-    "description": "Now with 5G support",
-    "price": 349.99,
-    "stock": 80,
-    "is_active": true,
-    "category_id": 1
-  }'
-```
+    "payment_method": "CREDIT_CARD",
+    "shipping_address_id": 1
+  }' | jq
 
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:22:36 GMT
-Content-Length: 715
-</code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "0001-01-01T00:00:00Z",
-  "updated_at": "2025-05-24T23:22:36.440839439+02:00",
-  "name": "Updated Phone",
-  "description": "Now with 5G support",
-  "price": 349.99,
-  "stock": 80,
-  "is_active": true,
-  "category_id": 1,
-  "category": {
-    "id": 1,
-    "created_at": "0001-01-01T00:00:00Z",
-    "updated_at": "2025-05-24T23:17:36.640609459+02:00",
-    "name": "Consumer Electronics"
-  },
-  "images": [
-    {
-      "id": 1,
-      "created_at": "2025-05-24T23:18:58.602234769+02:00",
-      "updated_at": "2025-05-24T23:18:58.602234769+02:00",
-      "url": "https://example.com/images/phone-front.jpg",
-      "product_id": 1
-    },
-    {
-      "id": 2,
-      "created_at": "2025-05-24T23:18:58.602234769+02:00",
-      "updated_at": "2025-05-24T23:18:58.602234769+02:00",
-      "url": "https://example.com/images/phone-back.jpg",
-      "product_id": 1
-    }
-  ]
-}
-```
-
-6. ❌ Delete Product
-
-- **Request**
-
-```bash
-curl -X DELETE -i http://localhost:8080/products/1
-```
-
-- **Response**
-
-<pre> <code>
-HTTP/1.1 204 No Content
-</code> </pre>
-
-### 🛒 Cart – cURL Examples with Responses
-
-1. ➕ Add Product to User's Cart
-
-- **Request**
-
-```bash
-curl -X POST -i http://localhost:8080/cart/1/add \
+# Admin creates an order (from their cart) → 201
+curl -s -X POST http://localhost:8080/orders \
+  -H "Authorization: $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "product_id": 1,
-    "quantity": 2
-  }'
-```
+    "payment_method": "CREDIT_CARD",
+    "shipping_address_id": 1
+  }' | jq
 
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:24:31 GMT
-Content-Length: 675
-</code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:24:31.046637875+02:00",
-  "updated_at": "2025-05-24T23:24:31.0587211+02:00",
-  "user_id": 1,
-  "items": [
-    {
-      "id": 1,
-      "created_at": "2025-05-24T23:24:31.052739562+02:00",
-      "updated_at": "2025-05-24T23:24:31.052739562+02:00",
-      "cart_id": 1,
-      "product_id": 1,
-      "product": {
-        "id": 1,
-        "created_at": "0001-01-01T00:00:00Z",
-        "updated_at": "2025-05-24T23:22:36.440839439+02:00",
-        "name": "Updated Phone",
-        "description": "Now with 5G support",
-        "price": 349.99,
-        "stock": 80,
-        "is_active": true,
-        "category_id": 1,
-        "category": {
-          "id": 0,
-          "created_at": "0001-01-01T00:00:00Z",
-          "updated_at": "0001-01-01T00:00:00Z",
-          "name": ""
-        },
-        "images": null
-      },
-      "quantity": 2,
-      "unit_price": 349.99,
-      "subtotal": 699.98
-    }
-  ],
-  "total": 699.98
-}
-```
-
-2. 📄 Get Cart by User ID
-
-- **Request**
-
-```bash
-curl -i http://localhost:8080/cart/1
-```
-
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:25:34 GMT
-Content-Length: 675
-</code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:24:31.046637875+02:00",
-  "updated_at": "2025-05-24T23:24:31.0587211+02:00",
-  "user_id": 1,
-  "items": [
-    {
-      "id": 1,
-      "created_at": "2025-05-24T23:24:31.052739562+02:00",
-      "updated_at": "2025-05-24T23:24:31.052739562+02:00",
-      "cart_id": 1,
-      "product_id": 1,
-      "product": {
-        "id": 1,
-        "created_at": "0001-01-01T00:00:00Z",
-        "updated_at": "2025-05-24T23:22:36.440839439+02:00",
-        "name": "Updated Phone",
-        "description": "Now with 5G support",
-        "price": 349.99,
-        "stock": 80,
-        "is_active": true,
-        "category_id": 1,
-        "category": {
-          "id": 0,
-          "created_at": "0001-01-01T00:00:00Z",
-          "updated_at": "0001-01-01T00:00:00Z",
-          "name": ""
-        },
-        "images": null
-      },
-      "quantity": 2,
-      "unit_price": 349.99,
-      "subtotal": 699.98
-    }
-  ],
-  "total": 699.98
-}
-```
-
-3. 🔄 Update Cart Item Quantity
-
-- **Request**
-
-```bash
-curl -X PUT -i http://localhost:8080/cart/item/1 \
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8080/orders \
   -H "Content-Type: application/json" \
   -d '{
-    "quantity": 3
-  }'
-```
-
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:26:54 GMT
-Content-Length: 678
-</code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:24:31.046637875+02:00",
-  "updated_at": "2025-05-24T23:26:54.97415734+02:00",
-  "user_id": 1,
-  "items": [
-    {
-      "id": 1,
-      "created_at": "2025-05-24T23:24:31.052739562+02:00",
-      "updated_at": "2025-05-24T23:26:54.967645549+02:00",
-      "cart_id": 1,
-      "product_id": 1,
-      "product": {
-        "id": 1,
-        "created_at": "0001-01-01T00:00:00Z",
-        "updated_at": "2025-05-24T23:22:36.440839439+02:00",
-        "name": "Updated Phone",
-        "description": "Now with 5G support",
-        "price": 349.99,
-        "stock": 80,
-        "is_active": true,
-        "category_id": 1,
-        "category": {
-          "id": 0,
-          "created_at": "0001-01-01T00:00:00Z",
-          "updated_at": "0001-01-01T00:00:00Z",
-          "name": ""
-        },
-        "images": null
-      },
-      "quantity": 3,
-      "unit_price": 349.99,
-      "subtotal": 1049.97
-    }
-  ],
-  "total": 1049.97
-}
-```
-
-4. ❌ Remove Cart Item
-
-- **Request**
-
-```bash
-curl -X DELETE -i http://localhost:8080/cart/item/1
-```
-
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:47:52 GMT
-Content-Length: 133
-</code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:24:31.046637875+02:00",
-  "updated_at": "2025-05-24T23:47:52.626251683+02:00",
-  "user_id": 1,
-  "total": 0
-}
-```
-5. 🧹 Clear Entire Cart
-
-- **Request**
-
-```bash
-curl -X DELETE -i http://localhost:8080/cart/1/clear
-```
-
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:48:57 GMT
-Content-Length: 133
-</code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:24:31.046637875+02:00",
-  "updated_at": "2025-05-24T23:48:57.263471076+02:00",
-  "user_id": 1,
-  "total": 0
-}
-```
-
-6. 🧭 Search Carts (Scopes)
-
-- **Request**
-
-```bash
-curl -i "http://localhost:8080/cart/search?user_id=1&total_max=1100"
-```
-
-- **Response**
-
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:29:24 GMT
-Content-Length: 680
-</code> </pre>
-
-```json
-[
-  {
-    "id": 1,
-    "created_at": "2025-05-24T23:24:31.046637875+02:00",
-    "updated_at": "2025-05-24T23:26:54.97415734+02:00",
-    "user_id": 1,
-    "items": [
-      {
-        "id": 1,
-        "created_at": "2025-05-24T23:24:31.052739562+02:00",
-        "updated_at": "2025-05-24T23:26:54.967645549+02:00",
-        "cart_id": 1,
-        "product_id": 1,
-        "product": {
-          "id": 1,
-          "created_at": "0001-01-01T00:00:00Z",
-          "updated_at": "2025-05-24T23:22:36.440839439+02:00",
-          "name": "Updated Phone",
-          "description": "Now with 5G support",
-          "price": 349.99,
-          "stock": 80,
-          "is_active": true,
-          "category_id": 1,
-          "category": {
-            "id": 0,
-            "created_at": "0001-01-01T00:00:00Z",
-            "updated_at": "0001-01-01T00:00:00Z",
-            "name": ""
-          },
-          "images": null
-        },
-        "quantity": 3,
-        "unit_price": 349.99,
-        "subtotal": 1049.97
-      }
-    ],
-    "total": 1049.97
-  }
-]
-```
-
-### 📦 Order – cURL Examples with Responses
-
-1. ➕ Create Order from Cart
-
-- **Request**
-
-```bash
-curl -X POST -i http://localhost:8080/users/1/orders \
-  -H "Content-Type: application/json" \
-  -d '{
-    "payment_method": "CARD",
+    "payment_method": "CREDIT_CARD",
     "shipping_address_id": 1
   }'
 ```
 
-- **Response**
-<pre> <code>
-HTTP/1.1 201 Created
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:31:58 GMT
-Content-Length: 880
-</code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:31:58.794202304+02:00",
-  "updated_at": "2025-05-24T23:31:58.794202304+02:00",
-  "user_id": 1,
-  "user": {
-    "id": 0,
-    "created_at": "0001-01-01T00:00:00Z",
-    "updated_at": "0001-01-01T00:00:00Z",
-    "email": "",
-    "name": "",
-    "surname": "",
-    "address_id": 0,
-    "address": {
-      "id": 0,
-      "created_at": "0001-01-01T00:00:00Z",
-      "updated_at": "0001-01-01T00:00:00Z",
-      "country": "",
-      "city": "",
-      "postcode": "",
-      "street": "",
-      "number": ""
-    }
-  },
-  "status": "PENDING",
-  "shipping_address_id": 1,
-  "shipping_address": {
-    "id": 0,
-    "created_at": "0001-01-01T00:00:00Z",
-    "updated_at": "0001-01-01T00:00:00Z",
-    "country": "",
-    "city": "",
-    "postcode": "",
-    "street": "",
-    "number": ""
-  },
-  "payment_method": "CARD",
-  "items": [
-    {
-      "id": 1,
-      "created_at": "2025-05-24T23:31:58.794656522+02:00",
-      "updated_at": "2025-05-24T23:31:58.794656522+02:00",
-      "order_id": 1,
-      "product_id": 1,
-      "name": "Updated Phone",
-      "unit_price": 349.99,
-      "quantity": 3,
-      "subtotal": 1049.97
-    }
-  ],
-  "total": 1049.97
-}
-```
-
-2. 📄 Get All Orders
-
-- **Request**
+2. GET `/orders/{id}`
+- Owner can fetch their own (200), other IDs → 403.
+- Admin can fetch any (200).
+- No token → 401.
 
 ```bash
-curl -i http://localhost:8080/orders
+# Regular user fetches own order (id=1) → 200
+curl -s -X GET http://localhost:8080/orders/1 \
+  -H "Authorization: $USER_TOKEN" | jq
+
+# Regular user tries to fetch admin’s order (id=2) → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X GET http://localhost:8080/orders/2 \
+  -H "Authorization: $USER_TOKEN"
+
+# Admin fetches user’s order (id=1) → 200
+curl -s -X GET http://localhost:8080/orders/1 \
+  -H "Authorization: $ADMIN_TOKEN" | jq
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X GET http://localhost:8080/orders/1
 ```
 
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:35:06 GMT
-Content-Length: 983
-</code> </pre>
-
-```json
-[
-  {
-    "id": 1,
-    "created_at": "2025-05-24T23:31:58.794202304+02:00",
-    "updated_at": "2025-05-24T23:31:58.794202304+02:00",
-    "user_id": 1,
-    "user": {
-      "id": 1,
-      "created_at": "0001-01-01T00:00:00Z",
-      "updated_at": "2025-05-24T23:12:49.09327422+02:00",
-      "email": "john.doe@example.com",
-      "name": "Johnathan",
-      "surname": "Doe",
-      "address_id": 0,
-      "address": {
-        "id": 0,
-        "created_at": "0001-01-01T00:00:00Z",
-        "updated_at": "0001-01-01T00:00:00Z",
-        "country": "",
-        "city": "",
-        "postcode": "",
-        "street": "",
-        "number": ""
-      }
-    },
-    "status": "PENDING",
-    "shipping_address_id": 1,
-    "shipping_address": {
-      "id": 1,
-      "created_at": "2025-05-24T23:02:58.139428936+02:00",
-      "updated_at": "2025-05-24T23:02:58.139428936+02:00",
-      "country": "USA",
-      "city": "New York",
-      "postcode": "10001",
-      "street": "Broadway",
-      "number": "1"
-    },
-    "payment_method": "CARD",
-    "items": [
-      {
-        "id": 1,
-        "created_at": "2025-05-24T23:31:58.794656522+02:00",
-        "updated_at": "2025-05-24T23:31:58.794656522+02:00",
-        "order_id": 1,
-        "product_id": 1,
-        "name": "Updated Phone",
-        "unit_price": 349.99,
-        "quantity": 3,
-        "subtotal": 1049.97
-      }
-    ],
-    "total": 1049.97
-  }
-]
-```
-
-3. 🔍 Get Order by ID
-
-- **Request**
+3. GET `/orders/user`
+- Returns a list of the authenticated user’s orders.
+- Admin sees only their own via this endpoint.
+- No token → 401.
 
 ```bash
-curl -i http://localhost:8080/orders/1
+# Regular user fetches their orders → 200
+curl -s -X GET http://localhost:8080/orders/user \
+  -H "Authorization: $USER_TOKEN" | jq
+
+# Admin fetches their orders → 200
+curl -s -X GET http://localhost:8080/orders/user \
+  -H "Authorization: $ADMIN_TOKEN" | jq
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X GET http://localhost:8080/orders/user
 ```
 
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:36:31 GMT
-Content-Length: 981
-</code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:31:58.794202304+02:00",
-  "updated_at": "2025-05-24T23:31:58.794202304+02:00",
-  "user_id": 1,
-  "user": {
-    "id": 1,
-    "created_at": "0001-01-01T00:00:00Z",
-    "updated_at": "2025-05-24T23:12:49.09327422+02:00",
-    "email": "john.doe@example.com",
-    "name": "Johnathan",
-    "surname": "Doe",
-    "address_id": 0,
-    "address": {
-      "id": 0,
-      "created_at": "0001-01-01T00:00:00Z",
-      "updated_at": "0001-01-01T00:00:00Z",
-      "country": "",
-      "city": "",
-      "postcode": "",
-      "street": "",
-      "number": ""
-    }
-  },
-  "status": "PENDING",
-  "shipping_address_id": 1,
-  "shipping_address": {
-    "id": 1,
-    "created_at": "2025-05-24T23:02:58.139428936+02:00",
-    "updated_at": "2025-05-24T23:02:58.139428936+02:00",
-    "country": "USA",
-    "city": "New York",
-    "postcode": "10001",
-    "street": "Broadway",
-    "number": "1"
-  },
-  "payment_method": "CARD",
-  "items": [
-    {
-      "id": 1,
-      "created_at": "2025-05-24T23:31:58.794656522+02:00",
-      "updated_at": "2025-05-24T23:31:58.794656522+02:00",
-      "order_id": 1,
-      "product_id": 1,
-      "name": "Updated Phone",
-      "unit_price": 349.99,
-      "quantity": 3,
-      "subtotal": 1049.97
-    }
-  ],
-  "total": 1049.97
-}
-```
-
-4. 🧭 Search Orders (Scopes)
-
-- **Request**
+4. GET `/orders`
+- Admin only → all orders (200).
+- Regular user → 403.
+- No token → 401.
 
 ```bash
-curl -i "http://localhost:8080/orders/search?user_id=1&status=PENDING&total_min=100"
+# Admin fetches all orders → 200
+curl -s -X GET http://localhost:8080/orders \
+  -H "Authorization: $ADMIN_TOKEN" | jq
+
+# Regular user tries → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X GET http://localhost:8080/orders \
+  -H "Authorization: $USER_TOKEN"
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X GET http://localhost:8080/orders
 ```
 
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:37:57 GMT
-Content-Length: 983
-</code> </pre>
-
-```json
-[
-  {
-    "id": 1,
-    "created_at": "2025-05-24T23:31:58.794202304+02:00",
-    "updated_at": "2025-05-24T23:31:58.794202304+02:00",
-    "user_id": 1,
-    "user": {
-      "id": 1,
-      "created_at": "0001-01-01T00:00:00Z",
-      "updated_at": "2025-05-24T23:12:49.09327422+02:00",
-      "email": "john.doe@example.com",
-      "name": "Johnathan",
-      "surname": "Doe",
-      "address_id": 0,
-      "address": {
-        "id": 0,
-        "created_at": "0001-01-01T00:00:00Z",
-        "updated_at": "0001-01-01T00:00:00Z",
-        "country": "",
-        "city": "",
-        "postcode": "",
-        "street": "",
-        "number": ""
-      }
-    },
-    "status": "PENDING",
-    "shipping_address_id": 1,
-    "shipping_address": {
-      "id": 1,
-      "created_at": "2025-05-24T23:02:58.139428936+02:00",
-      "updated_at": "2025-05-24T23:02:58.139428936+02:00",
-      "country": "USA",
-      "city": "New York",
-      "postcode": "10001",
-      "street": "Broadway",
-      "number": "1"
-    },
-    "payment_method": "CARD",
-    "items": [
-      {
-        "id": 1,
-        "created_at": "2025-05-24T23:31:58.794656522+02:00",
-        "updated_at": "2025-05-24T23:31:58.794656522+02:00",
-        "order_id": 1,
-        "product_id": 1,
-        "name": "Updated Phone",
-        "unit_price": 349.99,
-        "quantity": 3,
-        "subtotal": 1049.97
-      }
-    ],
-    "total": 1049.97
-  }
-]
-```
-
-5. 🔄 Update Order Status
-
-- **Request**
+5. PUT `/orders/{id}/status`
+- Admin only can update status (200).
+- Regular user → 403.
+- No token → 401.
 
 ```bash
-curl -X PUT -i http://localhost:8080/orders/1/status \
+# Admin updates order status (id=1 to SHIPPED) → 200
+curl -s -X PUT http://localhost:8080/orders/1/status \
+  -H "Authorization: $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "status": "PAID"
-  }'
+  -d '{"status": "SHIPPED"}' | jq
+
+# Regular user tries → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X PUT http://localhost:8080/orders/1/status \
+  -H "Authorization: $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "CANCELLED"}'
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X PUT http://localhost:8080/orders/1/status \
+  -H "Content-Type: application/json" \
+  -d '{"status": "SHIPPED"}'
 ```
 
-- **Response**
-
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:39:44 GMT
-Content-Length: 1041
-</code> </pre>
-
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:31:58.794202304+02:00",
-  "updated_at": "2025-05-24T23:39:44.868815325+02:00",
-  "user_id": 1,
-  "user": {
-    "id": 1,
-    "created_at": "2025-05-24T23:39:44.868582325+02:00",
-    "updated_at": "2025-05-24T23:12:49.09327422+02:00",
-    "email": "john.doe@example.com",
-    "name": "Johnathan",
-    "surname": "Doe",
-    "address_id": 0,
-    "address": {
-      "id": 0,
-      "created_at": "0001-01-01T00:00:00Z",
-      "updated_at": "0001-01-01T00:00:00Z",
-      "country": "",
-      "city": "",
-      "postcode": "",
-      "street": "",
-      "number": ""
-    }
-  },
-  "status": "PAID",
-  "paid_at": "2025-05-24T23:39:44.868546159+02:00",
-  "shipping_address_id": 1,
-  "shipping_address": {
-    "id": 1,
-    "created_at": "2025-05-24T23:02:58.139428936+02:00",
-    "updated_at": "2025-05-24T23:02:58.139428936+02:00",
-    "country": "USA",
-    "city": "New York",
-    "postcode": "10001",
-    "street": "Broadway",
-    "number": "1"
-  },
-  "payment_method": "CARD",
-  "items": [
-    {
-      "id": 1,
-      "created_at": "2025-05-24T23:31:58.794656522+02:00",
-      "updated_at": "2025-05-24T23:31:58.794656522+02:00",
-      "order_id": 1,
-      "product_id": 1,
-      "name": "Updated Phone",
-      "unit_price": 349.99,
-      "quantity": 3,
-      "subtotal": 1049.97
-    }
-  ],
-  "total": 1049.97
-}
-```
-
-6. ❌ Cancel Order
-
-- **Request**
+6. PUT `/orders/{id}/cancel`
+- Owner can cancel their own if still pending (200).
+- Admin can cancel any (200).
+- Other user → 403.
+- No token → 401.
 
 ```bash
-curl -X PUT -i http://localhost:8080/orders/1/cancel
+# Regular user cancels own order (id=1) → 200
+curl -s -X PUT http://localhost:8080/orders/1/cancel \
+  -H "Authorization: $USER_TOKEN" | jq
+
+# Regular user tries to cancel admin’s order (id=2) → 403
+curl -s -o /dev/null -w "%{http_code}\n" -X PUT http://localhost:8080/orders/2/cancel \
+  -H "Authorization: $USER_TOKEN"
+
+# Admin cancels any order (e.g., id=1) → 200
+curl -s -X PUT http://localhost:8080/orders/1/cancel \
+  -H "Authorization: $ADMIN_TOKEN" | jq
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X PUT http://localhost:8080/orders/1/cancel
 ```
 
-- **Response**
+7. GET `/orders/search?…`
+- Admin can filter any (e.g. ?user_id=2&status=PENDING).
+- Regular user sees only their own (ignores user_id).
+- No token → 401.
 
-<pre> <code>
-HTTP/1.1 200 OK
-Content-Type: application/json
-Date: Sat, 24 May 2025 21:41:51 GMT
-Content-Length: 1098
-</code> </pre>
+```bash
+# Admin searches orders by user_id=2 → 200
+curl -s -X GET 'http://localhost:8080/orders/search?user_id=2&status=PENDING' \
+  -H "Authorization: $ADMIN_TOKEN" | jq
 
-```json
-{
-  "id": 1,
-  "created_at": "2025-05-24T23:31:58.794202304+02:00",
-  "updated_at": "2025-05-24T23:41:51.000742291+02:00",
-  "user_id": 1,
-  "user": {
-    "id": 1,
-    "created_at": "2025-05-24T23:41:51.00048975+02:00",
-    "updated_at": "2025-05-24T23:12:49.09327422+02:00",
-    "email": "john.doe@example.com",
-    "name": "Johnathan",
-    "surname": "Doe",
-    "address_id": 0,
-    "address": {
-      "id": 0,
-      "created_at": "0001-01-01T00:00:00Z",
-      "updated_at": "0001-01-01T00:00:00Z",
-      "country": "",
-      "city": "",
-      "postcode": "",
-      "street": "",
-      "number": ""
-    }
-  },
-  "status": "CANCELLED",
-  "paid_at": "2025-05-24T23:39:44.868546159+02:00",
-  "cancelled_at": "2025-05-24T23:41:51.000393251+02:00",
-  "shipping_address_id": 1,
-  "shipping_address": {
-    "id": 1,
-    "created_at": "2025-05-24T23:02:58.139428936+02:00",
-    "updated_at": "2025-05-24T23:02:58.139428936+02:00",
-    "country": "USA",
-    "city": "New York",
-    "postcode": "10001",
-    "street": "Broadway",
-    "number": "1"
-  },
-  "payment_method": "CARD",
-  "items": [
-    {
-      "id": 1,
-      "created_at": "2025-05-24T23:31:58.794656522+02:00",
-      "updated_at": "2025-05-24T23:31:58.794656522+02:00",
-      "order_id": 1,
-      "product_id": 1,
-      "name": "Updated Phone",
-      "unit_price": 349.99,
-      "quantity": 3,
-      "subtotal": 1049.97
-    }
-  ],
-  "total": 1049.97
-}
+# Regular user tries to search by user_id=1 → sees only their own
+curl -s -X GET 'http://localhost:8080/orders/search?user_id=1' \
+  -H "Authorization: $USER_TOKEN" | jq
+
+# No token → 401
+curl -s -o /dev/null -w "%{http_code}\n" -X GET 'http://localhost:8080/orders/search?user_id=2'
 ```
 
 ## Dependencies
 
-Main packages:
-
-- Echo - framework HTTP
-
-- GORM - ORM for Go
-
-- SQLite - database engine
-
-- Validator - data validation
+- Echo – HTTP framework
+- GORM – ORM for Go
+- SQLite – Database engine
+- Validator – Input validation
 
 ## Additional Notes
 
-1. The database is automatically created on first run in the file `ecommerce.db`.
-
-2. The database schema is generated using GORM AutoMigrate.
-
-3. All operations on products/cart update the inventory in real time.
-
-4. Order statuses are validated for consistency (e.g., an order that has already been shipped cannot be canceled).
+1. The database file (`ecommerce.db`) is created automatically on first run.
+2. GORM’s AutoMigrate creates tables based on models.
+3. Inventory (stock) is decreased when items are added to cart and orders are created.
+4. Order status transitions are validated (e.g., shipped orders cannot be canceled).
+EOF

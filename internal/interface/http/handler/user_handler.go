@@ -2,10 +2,11 @@ package handler
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
+	"strconv"
 
 	"go-ecommerce-api/internal/domain/model"
+	"go-ecommerce-api/internal/infrastructure/auth"
 	"go-ecommerce-api/internal/usecase"
 
 	"github.com/labstack/echo/v4"
@@ -21,9 +22,22 @@ func NewUserHandler(uc usecase.UserUsecase) *UserHandler {
 }
 
 func (h *UserHandler) GetByID(c echo.Context) error {
+	uidToken, err := auth.UserIDFromContext(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+	}
+	role, err := auth.RoleFromContext(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+	}
+
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid user ID")
+	}
+
+	if role != "admin" && uidToken != id {
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
 	}
 
 	user, err := h.Usecase.GetByID(id)
@@ -37,6 +51,11 @@ func (h *UserHandler) GetByID(c echo.Context) error {
 }
 
 func (h *UserHandler) GetAll(c echo.Context) error {
+	role, err := auth.RoleFromContext(c)
+	if err != nil || role != "admin" {
+		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+	}
+
 	users, err := h.Usecase.GetAll()
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
@@ -45,6 +64,11 @@ func (h *UserHandler) GetAll(c echo.Context) error {
 }
 
 func (h *UserHandler) Search(c echo.Context) error {
+	role, err := auth.RoleFromContext(c)
+	if err != nil || role != "admin" {
+		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+	}
+
 	filters := map[string]string{}
 	for key, vals := range c.QueryParams() {
 		if len(vals) > 0 {
@@ -99,19 +123,43 @@ func (h *UserHandler) Login(c echo.Context) error {
 	if err := c.Bind(&input); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
+	if err := c.Validate(&input); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
 
 	user, err := h.Usecase.Login(input.Email, input.Password)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid credentials")
 	}
 
-	return c.JSON(http.StatusOK, user)
+	token, err := auth.GenerateToken(user.ID, user.Role)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "could not generate token")
+	}
+
+	return c.JSON(http.StatusOK, echo.Map{
+		"token": token,
+		"user":  user,
+	})
 }
 
 func (h *UserHandler) Update(c echo.Context) error {
+	uidToken, err := auth.UserIDFromContext(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+	}
+	role, err := auth.RoleFromContext(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+	}
+
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid user ID")
+	}
+
+	if role != "admin" && uidToken != id {
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
 	}
 
 	var input model.User
@@ -119,6 +167,7 @@ func (h *UserHandler) Update(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
 	input.ID = id
+	input.Role = ""
 
 	updated, err := h.Usecase.Update(&input)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -131,9 +180,22 @@ func (h *UserHandler) Update(c echo.Context) error {
 }
 
 func (h *UserHandler) Delete(c echo.Context) error {
+	uidToken, err := auth.UserIDFromContext(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+	}
+	role, err := auth.RoleFromContext(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+	}
+
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid user ID")
+	}
+
+	if role != "admin" && uidToken != id {
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
 	}
 
 	err = h.Usecase.Delete(id)
@@ -148,7 +210,6 @@ func (h *UserHandler) Delete(c echo.Context) error {
 
 func parseUintParam(c echo.Context, name string) (uint, error) {
 	idParam := c.Param(name)
-	var id uint
-	_, err := fmt.Sscanf(idParam, "%d", &id)
-	return id, err
+	parsed, err := strconv.ParseUint(idParam, 10, 64)
+	return uint(parsed), err
 }

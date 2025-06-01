@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"go-ecommerce-api/internal/infrastructure/auth"
 	"go-ecommerce-api/internal/usecase"
 
 	"github.com/labstack/echo/v4"
@@ -19,9 +20,9 @@ func NewCartHandler(uc usecase.CartUsecase) *CartHandler {
 }
 
 func (h *CartHandler) GetByUserID(c echo.Context) error {
-	userID, err := parseUintParam(c, "user_id")
+	userID, err := auth.UserIDFromContext(c)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid user ID")
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
 	}
 
 	cart, err := h.Usecase.GetByUserID(userID)
@@ -54,9 +55,9 @@ type addReq struct {
 }
 
 func (h *CartHandler) AddProduct(c echo.Context) error {
-	userID, err := parseUintParam(c, "user_id")
+	userID, err := auth.UserIDFromContext(c)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid user ID")
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
 	}
 
 	var req addReq
@@ -113,9 +114,9 @@ func (h *CartHandler) RemoveItem(c echo.Context) error {
 }
 
 func (h *CartHandler) ClearCart(c echo.Context) error {
-	userID, err := parseUintParam(c, "user_id")
+	userID, err := auth.UserIDFromContext(c)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid user ID")
+		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
 	}
 
 	cart, err := h.Usecase.ClearCart(userID)

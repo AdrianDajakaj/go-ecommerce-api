@@ -1,3 +1,5 @@
 
 # Ignore assets folder
 /assets/
+.env
+ecommerce.db

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"go-ecommerce-api/internal/domain/model"
+	"go-ecommerce-api/internal/infrastructure/auth"
 	"go-ecommerce-api/internal/usecase"
 
 	"github.com/labstack/echo/v4"
@@ -56,6 +57,11 @@ func (h *ProductHandler) Search(c echo.Context) error {
 }
 
 func (h *ProductHandler) Create(c echo.Context) error {
+	role, err := auth.RoleFromContext(c)
+	if err != nil || role != "admin" {
+		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+	}
+
 	var input model.Product
 	if err := c.Bind(&input); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
@@ -68,6 +74,11 @@ func (h *ProductHandler) Create(c echo.Context) error {
 }
 
 func (h *ProductHandler) Update(c echo.Context) error {
+	role, err := auth.RoleFromContext(c)
+	if err != nil || role != "admin" {
+		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+	}
+
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid product ID")
@@ -87,6 +98,11 @@ func (h *ProductHandler) Update(c echo.Context) error {
 }
 
 func (h *ProductHandler) Delete(c echo.Context) error {
+	role, err := auth.RoleFromContext(c)
+	if err != nil || role != "admin" {
+		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+	}
+
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid product ID")

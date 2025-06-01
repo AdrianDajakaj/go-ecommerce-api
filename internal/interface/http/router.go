@@ -1,6 +1,7 @@
 package http
 
 import (
+	"go-ecommerce-api/internal/infrastructure/auth"
 	"go-ecommerce-api/internal/infrastructure/persistence/repository"
 	"go-ecommerce-api/internal/interface/http/handler"
 	"go-ecommerce-api/internal/usecase"
@@ -22,72 +23,73 @@ func NewRouter(db *gorm.DB) *echo.Echo {
 	e := echo.New()
 	e.Validator = &CustomValidator{validator: validator.New()}
 
-	addressRepository := repository.NewAddressRepository(db)
-	userRepository := repository.NewUserRepository(db)
-	categoryRepository := repository.NewCategoryRepository(db)
-	productRepository := repository.NewProductRepository(db)
-	cartItemRepository := repository.NewCartItemRepository(db)
-	cartRepository := repository.NewCartRepository(db)
-	orderRepository := repository.NewOrderRepository(db)
+	addressRepo := repository.NewAddressRepository(db)
+	userRepo := repository.NewUserRepository(db)
+	categoryRepo := repository.NewCategoryRepository(db)
+	productRepo := repository.NewProductRepository(db)
+	cartItemRepo := repository.NewCartItemRepository(db)
+	cartRepo := repository.NewCartRepository(db)
+	orderRepo := repository.NewOrderRepository(db)
 
-	userUsecase := usecase.NewUserUsecase(userRepository, addressRepository)
-	categoryUsecase := usecase.NewCategoryUsecase(categoryRepository)
-	productUsecase := usecase.NewProductUsecase(productRepository)
-	cartUsecase := usecase.NewCartUsecase(cartRepository, cartItemRepository, productRepository)
-	orderUsecase := usecase.NewOrderUsecase(
-		orderRepository,
-		cartRepository,
-		cartItemRepository,
-		productRepository,
-		userRepository,
-		addressRepository,
-	)
+	userUC := usecase.NewUserUsecase(userRepo, addressRepo)
+	catUC := usecase.NewCategoryUsecase(categoryRepo)
+	prodUC := usecase.NewProductUsecase(productRepo)
+	cartUC := usecase.NewCartUsecase(cartRepo, cartItemRepo, productRepo)
+	orderUC := usecase.NewOrderUsecase(orderRepo, cartRepo, cartItemRepo, productRepo, userRepo, addressRepo)
 
-	userHandler := handler.NewUserHandler(userUsecase)
-	categoryHandler := handler.NewCategoryHandler(categoryUsecase)
-	productHandler := handler.NewProductHandler(productUsecase)
-	cartHandler := handler.NewCartHandler(cartUsecase)
-	orderHandler := handler.NewOrderHandler(orderUsecase)
+	userHandler := handler.NewUserHandler(userUC)
+	catHandler := handler.NewCategoryHandler(catUC)
+	prodHandler := handler.NewProductHandler(prodUC)
+	cartHandler := handler.NewCartHandler(cartUC)
+	orderHandler := handler.NewOrderHandler(orderUC)
 
 	e.Static("/images", "assets/images/")
 
 	e.POST("/users/register", userHandler.Register)
 	e.POST("/users/login", userHandler.Login)
-	e.GET("/users/:id", userHandler.GetByID)
-	e.GET("/users", userHandler.GetAll)
-	e.GET("/users/search", userHandler.Search)
-	e.PUT("/users/:id", userHandler.Update)
-	e.DELETE("/users/:id", userHandler.Delete)
+	userGroup := e.Group("/users")
+	userGroup.Use(auth.JWTMiddleware())
+	userGroup.GET("/:id", userHandler.GetByID)
+	userGroup.GET("", userHandler.GetAll)
+	userGroup.GET("/search", userHandler.Search)
+	userGroup.PUT("/:id", userHandler.Update)
+	userGroup.DELETE("/:id", userHandler.Delete)
 
-	e.GET("/categories", categoryHandler.GetAll)
-	e.GET("/categories/:id", categoryHandler.GetByID)
-	e.GET("/categories/:id/subcategories", categoryHandler.GetSubcategories)
-	e.POST("/categories", categoryHandler.Create)
-	e.PUT("/categories/:id", categoryHandler.Update)
-	e.DELETE("/categories/:id", categoryHandler.Delete)
-	e.GET("/categories/search", categoryHandler.Search)
+	e.GET("/categories", catHandler.GetAll)
+	e.GET("/categories/:id", catHandler.GetByID)
+	e.GET("/categories/:id/subcategories", catHandler.GetSubcategories)
+	e.GET("/categories/search", catHandler.Search)
+	categoryGroup := e.Group("/categories")
+	categoryGroup.Use(auth.JWTMiddleware())
+	categoryGroup.POST("", catHandler.Create)
+	categoryGroup.PUT("/:id", catHandler.Update)
+	categoryGroup.DELETE("/:id", catHandler.Delete)
 
-	e.GET("/products", productHandler.GetAll)
-	e.GET("/products/search", productHandler.Search)
-	e.GET("/products/:id", productHandler.GetByID)
-	e.POST("/products", productHandler.Create)
-	e.PUT("/products/:id", productHandler.Update)
-	e.DELETE("/products/:id", productHandler.Delete)
+	e.GET("/products", prodHandler.GetAll)
+	e.GET("/products/search", prodHandler.Search)
+	e.GET("/products/:id", prodHandler.GetByID)
+	productGroup := e.Group("/products")
+	productGroup.Use(auth.JWTMiddleware())
+	productGroup.POST("", prodHandler.Create)
+	productGroup.PUT("/:id", prodHandler.Update)
+	productGroup.DELETE("/:id", prodHandler.Delete)
 
-	e.GET("/cart/:user_id", cartHandler.GetByUserID)
-	e.POST("/cart/:user_id/add", cartHandler.AddProduct)
-	e.PUT("/cart/item/:id", cartHandler.UpdateItem)
-	e.DELETE("/cart/item/:id", cartHandler.RemoveItem)
-	e.DELETE("/cart/:user_id/clear", cartHandler.ClearCart)
-	e.GET("/cart/search", cartHandler.Search)
+	r := e.Group("")
+	r.Use(auth.JWTMiddleware())
+	r.GET("/cart", cartHandler.GetByUserID)
+	r.POST("/cart/add", cartHandler.AddProduct)
+	r.PUT("/cart/item/:id", cartHandler.UpdateItem)
+	r.DELETE("/cart/item/:id", cartHandler.RemoveItem)
+	r.DELETE("/cart/clear", cartHandler.ClearCart)
+	r.GET("/cart/search", cartHandler.Search)
 
-	e.POST("/users/:user_id/orders", orderHandler.CreateOrder)
-	e.GET("/orders/:id", orderHandler.GetOrder)
-	e.GET("/users/:user_id/orders", orderHandler.GetUserOrders)
-	e.GET("/orders", orderHandler.GetAllOrders)
-	e.PUT("/orders/:id/status", orderHandler.UpdateStatus)
-	e.PUT("/orders/:id/cancel", orderHandler.CancelOrder)
-	e.GET("/orders/search", orderHandler.Search)
+	r.POST("/orders", orderHandler.CreateOrder)
+	r.GET("/orders/:id", orderHandler.GetOrder)
+	r.GET("/orders", orderHandler.GetAllOrders)
+	r.GET("/orders/user", orderHandler.GetUserOrders)
+	r.PUT("/orders/:id/status", orderHandler.UpdateStatus)
+	r.PUT("/orders/:id/cancel", orderHandler.CancelOrder)
+	r.GET("/orders/search", orderHandler.Search)
 
 	return e
 }

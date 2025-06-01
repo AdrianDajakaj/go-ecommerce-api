@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"go-ecommerce-api/internal/domain/model"
+	"go-ecommerce-api/internal/infrastructure/auth"
 	"go-ecommerce-api/internal/usecase"
 
 	"github.com/labstack/echo/v4"
@@ -76,6 +77,11 @@ func (h *CategoryHandler) Search(c echo.Context) error {
 }
 
 func (h *CategoryHandler) Create(c echo.Context) error {
+	role, err := auth.RoleFromContext(c)
+	if err != nil || role != "admin" {
+		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+	}
+
 	var input model.Category
 	if err := c.Bind(&input); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
@@ -90,6 +96,11 @@ func (h *CategoryHandler) Create(c echo.Context) error {
 }
 
 func (h *CategoryHandler) Update(c echo.Context) error {
+	role, err := auth.RoleFromContext(c)
+	if err != nil || role != "admin" {
+		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+	}
+
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid category ID")
@@ -112,6 +123,11 @@ func (h *CategoryHandler) Update(c echo.Context) error {
 }
 
 func (h *CategoryHandler) Delete(c echo.Context) error {
+	role, err := auth.RoleFromContext(c)
+	if err != nil || role != "admin" {
+		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+	}
+
 	id, err := parseUintParam(c, "id")
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid category ID")
