@@ -68,7 +68,7 @@ func (h *OrderHandler) GetUserOrders(c echo.Context) error {
 func (h *OrderHandler) GetAllOrders(c echo.Context) error {
 	role, err := auth.RoleFromContext(c)
 	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
 	}
 
 	orders, err := h.usecase.GetAll()
@@ -146,7 +146,7 @@ func (h *OrderHandler) UpdateStatus(c echo.Context) error {
 
 	role, err := auth.RoleFromContext(c)
 	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
 	}
 
 	var req updateStatusRequest

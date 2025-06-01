@@ -53,7 +53,7 @@ func (h *UserHandler) GetByID(c echo.Context) error {
 func (h *UserHandler) GetAll(c echo.Context) error {
 	role, err := auth.RoleFromContext(c)
 	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
 	}
 
 	users, err := h.Usecase.GetAll()
@@ -66,7 +66,7 @@ func (h *UserHandler) GetAll(c echo.Context) error {
 func (h *UserHandler) Search(c echo.Context) error {
 	role, err := auth.RoleFromContext(c)
 	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
 	}
 
 	filters := map[string]string{}

@@ -2,7 +2,6 @@ package auth
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"time"
 
@@ -35,9 +34,6 @@ func JWTMiddleware() echo.MiddlewareFunc {
 		ContextKey:    "user",
 		TokenLookup:   "header:Authorization",
 		ErrorHandler: func(c echo.Context, err error) error {
-			auth := c.Request().Header.Get("Authorization")
-			fmt.Println("🔍 Authorization header:", auth)
-			fmt.Println("🔐 JWT validation error:", err)
 			return echo.NewHTTPError(401, "invalid or expired jwt")
 		},
 	})

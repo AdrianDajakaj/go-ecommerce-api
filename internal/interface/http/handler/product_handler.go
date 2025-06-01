@@ -59,7 +59,7 @@ func (h *ProductHandler) Search(c echo.Context) error {
 func (h *ProductHandler) Create(c echo.Context) error {
 	role, err := auth.RoleFromContext(c)
 	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
 	}
 
 	var input model.Product
@@ -76,7 +76,7 @@ func (h *ProductHandler) Create(c echo.Context) error {
 func (h *ProductHandler) Update(c echo.Context) error {
 	role, err := auth.RoleFromContext(c)
 	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
 	}
 
 	id, err := parseUintParam(c, "id")
@@ -100,7 +100,7 @@ func (h *ProductHandler) Update(c echo.Context) error {
 func (h *ProductHandler) Delete(c echo.Context) error {
 	role, err := auth.RoleFromContext(c)
 	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
 	}
 
 	id, err := parseUintParam(c, "id")

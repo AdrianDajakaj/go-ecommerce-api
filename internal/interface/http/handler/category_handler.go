@@ -79,7 +79,7 @@ func (h *CategoryHandler) Search(c echo.Context) error {
 func (h *CategoryHandler) Create(c echo.Context) error {
 	role, err := auth.RoleFromContext(c)
 	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
 	}
 
 	var input model.Category
@@ -98,7 +98,7 @@ func (h *CategoryHandler) Create(c echo.Context) error {
 func (h *CategoryHandler) Update(c echo.Context) error {
 	role, err := auth.RoleFromContext(c)
 	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
 	}
 
 	id, err := parseUintParam(c, "id")
@@ -125,7 +125,7 @@ func (h *CategoryHandler) Update(c echo.Context) error {
 func (h *CategoryHandler) Delete(c echo.Context) error {
 	role, err := auth.RoleFromContext(c)
 	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "admin access required")
+		return echo.NewHTTPError(http.StatusForbidden, "access denied")
 	}
 
 	id, err := parseUintParam(c, "id")
