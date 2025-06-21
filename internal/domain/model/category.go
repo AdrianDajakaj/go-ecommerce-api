@@ -12,7 +12,8 @@ type Category struct {
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
-	Name string `json:"name" gorm:"size:100;uniqueIndex;not null"`
+	Name    string  `json:"name" gorm:"size:100;uniqueIndex;not null"`
+	IconURL *string `json:"icon_url,omitempty" gorm:"type:text"`
 
 	Products       []Product  `json:"products,omitempty" gorm:"foreignKey:CategoryID"`
 	ParentID       *uint      `json:"parent_id,omitempty"`
