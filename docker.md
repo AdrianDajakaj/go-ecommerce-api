@@ -72,7 +72,7 @@ docker build --build-arg GO_VERSION=1.22 -t go-ecommerce-api .
 This Dockerfile is designed to work with the main project's `docker-compose.yml` located in the parent repository:
 
 ```yaml
-# In your main repository's docker-compose.yml
+
 services:
   api:
     build:

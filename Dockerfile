@@ -24,6 +24,7 @@ RUN mkdir -p /app/data /app/assets && \
     chown -R appuser:appgroup /app
 
 COPY --from=build /app/main /app/main
+COPY --chown=appuser:appgroup assets /app/assets
 RUN chmod +x /app/main
 
 

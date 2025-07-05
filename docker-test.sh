@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 set -e
 
 echo "🐳 Building Go Echo API Docker Image..."
