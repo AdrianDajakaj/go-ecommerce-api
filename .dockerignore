@@ -1,0 +1,31 @@
+# Ignore build artifacts and development files
+.git
+.gitignore
+*.md
+README.md
+docker.md
+docker-test.sh
+Dockerfile
+.dockerignore
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Ignore test files
+*_test.go
+testdata/
+
+# Ignore temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# Keep assets and database for Docker build context
+# (these will be managed by volumes in docker-compose)
+!assets/
+!ecommerce.db
