@@ -32,6 +32,19 @@ func (r *cartRepository) FindByUserID(userID uint) (*model.Cart, error) {
 	return &cart, nil
 }
 
+func (r *cartRepository) FindByCartID(cartID uint) (*model.Cart, error) {
+	var cart model.Cart
+	if err := r.db.Preload("Items.Product").
+		Where("id = ?", cartID).
+		First(&cart).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &cart, nil
+}
+
 func (r *cartRepository) FindWithFilters(filters map[string]string) ([]model.Cart, error) {
 	db := r.db.Model(&model.Cart{})
 	db = db.Scopes(scope.ScopeCartWithItems())

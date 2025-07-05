@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"errors"
+	"fmt"
 	"go-ecommerce-api/internal/domain/model"
 	"go-ecommerce-api/internal/domain/repository"
 
@@ -96,8 +97,8 @@ func (u *cartUsecase) UpdateItem(itemID uint, quantity int) (*model.Cart, error)
 	if item == nil {
 		return nil, gorm.ErrRecordNotFound
 	}
-
-	cart, err := u.cartRepo.FindByUserID(item.CartID)
+	fmt.Println(item.CartID)
+	cart, err := u.cartRepo.FindByCartID(item.CartID)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +142,7 @@ func (u *cartUsecase) RemoveItem(itemID uint) (*model.Cart, error) {
 		return nil, gorm.ErrRecordNotFound
 	}
 
-	cart, err := u.cartRepo.FindByUserID(item.CartID)
+	cart, err := u.cartRepo.FindByCartID(item.CartID)
 	if err != nil {
 		return nil, err
 	}
