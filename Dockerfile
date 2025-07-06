@@ -25,12 +25,13 @@ RUN mkdir -p /app/data /app/assets && \
 
 COPY --from=build /app/main /app/main
 COPY --chown=appuser:appgroup assets /app/assets
-RUN chmod +x /app/main
+COPY --chown=appuser:appgroup scripts/healthcheck.sh /app/healthcheck.sh
+RUN chmod +x /app/main && chmod +x /app/healthcheck.sh
 
 
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:8080/health || exit 1
+  CMD ["/app/healthcheck.sh"]
 
 CMD ["./main"]
