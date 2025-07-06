@@ -23,10 +23,19 @@ WORKDIR /app
 RUN mkdir -p /app/data /app/assets && \
     chown -R appuser:appgroup /app
 
+# Copy files without changing ownership initially
 COPY --from=build /app/main /app/main
-COPY --chown=appuser:appgroup assets /app/assets
-COPY --chown=appuser:appgroup scripts/healthcheck.sh /app/healthcheck.sh
-RUN chmod +x /app/main && chmod +x /app/healthcheck.sh
+COPY assets /app/assets
+COPY scripts/healthcheck.sh /app/healthcheck.sh
+
+# Set minimal required permissions and ownership
+RUN chmod 755 /app/main && \
+    chmod 755 /app/healthcheck.sh && \
+    chown appuser:appgroup /app/main /app/healthcheck.sh && \
+    chown -R appuser:appgroup /app/assets && \
+    chmod -R 644 /app/assets
+
+USER appuser
 
 
 EXPOSE 8080
