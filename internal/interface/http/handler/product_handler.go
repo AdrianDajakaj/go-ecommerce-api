@@ -12,6 +12,14 @@ import (
 	"gorm.io/gorm"
 )
 
+// Error message constants
+const (
+	errInvalidProductID = "invalid product ID"
+	errProductNotFound  = "product not found"
+	errAccessDenied     = "access denied"
+	errInvalidBody      = "invalid request body"
+)
+
 type ProductHandler struct {
 	Usecase usecase.ProductUsecase
 }
@@ -20,14 +28,23 @@ func NewProductHandler(uc usecase.ProductUsecase) *ProductHandler {
 	return &ProductHandler{Usecase: uc}
 }
 
+// checkAdminRole verifies if the user has admin role
+func (h *ProductHandler) checkAdminRole(c echo.Context) error {
+	role, err := auth.RoleFromContext(c)
+	if err != nil || role != "admin" {
+		return echo.NewHTTPError(http.StatusForbidden, errAccessDenied)
+	}
+	return nil
+}
+
 func (h *ProductHandler) GetByID(c echo.Context) error {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid product ID")
+		return echo.NewHTTPError(http.StatusBadRequest, errInvalidProductID)
 	}
 	prod, err := h.Usecase.GetByID(id)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return echo.NewHTTPError(http.StatusNotFound, "product not found")
+		return echo.NewHTTPError(http.StatusNotFound, errProductNotFound)
 	} else if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -57,14 +74,13 @@ func (h *ProductHandler) Search(c echo.Context) error {
 }
 
 func (h *ProductHandler) Create(c echo.Context) error {
-	role, err := auth.RoleFromContext(c)
-	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "access denied")
+	if err := h.checkAdminRole(c); err != nil {
+		return err
 	}
 
 	var input model.Product
 	if err := c.Bind(&input); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+		return echo.NewHTTPError(http.StatusBadRequest, errInvalidBody)
 	}
 	created, err := h.Usecase.Create(&input)
 	if err != nil {
@@ -74,23 +90,22 @@ func (h *ProductHandler) Create(c echo.Context) error {
 }
 
 func (h *ProductHandler) Update(c echo.Context) error {
-	role, err := auth.RoleFromContext(c)
-	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "access denied")
+	if err := h.checkAdminRole(c); err != nil {
+		return err
 	}
 
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid product ID")
+		return echo.NewHTTPError(http.StatusBadRequest, errInvalidProductID)
 	}
 	var input model.Product
 	if err := c.Bind(&input); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+		return echo.NewHTTPError(http.StatusBadRequest, errInvalidBody)
 	}
 	input.ID = id
 	updated, err := h.Usecase.Update(&input)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return echo.NewHTTPError(http.StatusNotFound, "product not found")
+		return echo.NewHTTPError(http.StatusNotFound, errProductNotFound)
 	} else if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -98,17 +113,16 @@ func (h *ProductHandler) Update(c echo.Context) error {
 }
 
 func (h *ProductHandler) Delete(c echo.Context) error {
-	role, err := auth.RoleFromContext(c)
-	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "access denied")
+	if err := h.checkAdminRole(c); err != nil {
+		return err
 	}
 
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid product ID")
+		return echo.NewHTTPError(http.StatusBadRequest, errInvalidProductID)
 	}
 	if err := h.Usecase.Delete(id); errors.Is(err, gorm.ErrRecordNotFound) {
-		return echo.NewHTTPError(http.StatusNotFound, "product not found")
+		return echo.NewHTTPError(http.StatusNotFound, errProductNotFound)
 	} else if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}

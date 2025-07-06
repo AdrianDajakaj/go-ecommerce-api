@@ -17,7 +17,9 @@ func NewOrderItemRepository(db *gorm.DB) repository.OrderItemRepository {
 
 func (r *orderItemRepository) FindByOrderID(orderID uint) ([]model.OrderItem, error) {
 	var items []model.OrderItem
-	if err := r.db.Where("order_id = ?", orderID).Find(&items).Error; err != nil {
+	if err := r.db.Preload("Product").
+		Where("order_id = ?", orderID).
+		Find(&items).Error; err != nil {
 		return nil, err
 	}
 	return items, nil

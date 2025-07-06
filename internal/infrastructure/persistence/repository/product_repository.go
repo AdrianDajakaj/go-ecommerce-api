@@ -46,32 +46,50 @@ func (r *productRepository) FindWithFilters(filters map[string]string) ([]model.
 		Preload("Category").
 		Preload("Images")
 
-	if v, ok := filters["category_id"]; ok {
-		if id, err := strconv.Atoi(v); err == nil {
-			db = db.Scopes(scope.ScopeProductByCategory(uint(id)))
-		}
-	}
-	if v, ok := filters["name"]; ok {
-		db = db.Scopes(scope.ScopeProductByName(v))
-	}
-	if v, ok := filters["is_active"]; ok && (v == "true" || v == "false") {
-		db = db.Scopes(scope.ScopeProductByIsActive(v == "true"))
-	}
-	if min, ok1 := filters["price_min"]; ok1 {
-		if max, ok2 := filters["price_max"]; ok2 {
-			if fmin, err1 := strconv.ParseFloat(min, 64); err1 == nil {
-				if fmax, err2 := strconv.ParseFloat(max, 64); err2 == nil {
-					db = db.Scopes(scope.ScopeProductByPriceRange(fmin, fmax))
-				}
-			}
-		}
-	}
+	r.applyCategoryFilter(db, filters)
+	r.applyNameFilter(db, filters)
+	r.applyActiveFilter(db, filters)
+	r.applyPriceRangeFilter(db, filters)
 
 	var products []model.Product
 	if err := db.Find(&products).Error; err != nil {
 		return nil, err
 	}
 	return products, nil
+}
+
+func (r *productRepository) applyCategoryFilter(db *gorm.DB, filters map[string]string) {
+	if v, ok := filters["category_id"]; ok {
+		if id, err := strconv.Atoi(v); err == nil {
+			db.Scopes(scope.ScopeProductByCategory(uint(id)))
+		}
+	}
+}
+
+func (r *productRepository) applyNameFilter(db *gorm.DB, filters map[string]string) {
+	if v, ok := filters["name"]; ok {
+		db.Scopes(scope.ScopeProductByName(v))
+	}
+}
+
+func (r *productRepository) applyActiveFilter(db *gorm.DB, filters map[string]string) {
+	if v, ok := filters["is_active"]; ok && (v == "true" || v == "false") {
+		db.Scopes(scope.ScopeProductByIsActive(v == "true"))
+	}
+}
+
+func (r *productRepository) applyPriceRangeFilter(db *gorm.DB, filters map[string]string) {
+	min, okMin := filters["price_min"]
+	max, okMax := filters["price_max"]
+
+	if okMin && okMax {
+		fmin, err1 := strconv.ParseFloat(min, 64)
+		fmax, err2 := strconv.ParseFloat(max, 64)
+
+		if err1 == nil && err2 == nil {
+			db.Scopes(scope.ScopeProductByPriceRange(fmin, fmax))
+		}
+	}
 }
 
 func (r *productRepository) Create(product *model.Product) error {

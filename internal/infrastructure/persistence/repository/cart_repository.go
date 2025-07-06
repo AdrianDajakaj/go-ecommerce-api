@@ -49,33 +49,10 @@ func (r *cartRepository) FindWithFilters(filters map[string]string) ([]model.Car
 	db := r.db.Model(&model.Cart{})
 	db = db.Scopes(scope.ScopeCartWithItems())
 
-	if v, ok := filters["user_id"]; ok {
-		if id, err := strconv.ParseUint(v, 10, 64); err == nil {
-			db = db.Scopes(scope.ScopeCartByUser(uint(id)))
-		}
-	}
-
-	if vMin, okMin := filters["total_min"]; okMin {
-		if vMax, okMax := filters["total_max"]; okMax {
-			if min, err1 := strconv.ParseFloat(vMin, 64); err1 == nil {
-				if max, err2 := strconv.ParseFloat(vMax, 64); err2 == nil {
-					db = db.Scopes(scope.ScopeCartByTotalRange(min, max))
-				}
-			}
-		}
-	}
-
-	if v, ok := filters["created_after"]; ok {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			db = db.Scopes(scope.ScopeCartCreatedAfter(t))
-		}
-	}
-
-	if v, ok := filters["created_before"]; ok {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			db = db.Scopes(scope.ScopeCartCreatedBefore(t))
-		}
-	}
+	db = r.applyUserFilter(db, filters)
+	db = r.applyTotalRangeFilter(db, filters)
+	db = r.applyCreatedAfterFilter(db, filters)
+	db = r.applyCreatedBeforeFilter(db, filters)
 
 	var carts []model.Cart
 	if err := db.Find(&carts).Error; err != nil {
@@ -83,6 +60,47 @@ func (r *cartRepository) FindWithFilters(filters map[string]string) ([]model.Car
 	}
 
 	return carts, nil
+}
+
+func (r *cartRepository) applyUserFilter(db *gorm.DB, filters map[string]string) *gorm.DB {
+	if v, ok := filters["user_id"]; ok {
+		if id, err := strconv.ParseUint(v, 10, 64); err == nil {
+			db = db.Scopes(scope.ScopeCartByUser(uint(id)))
+		}
+	}
+	return db
+}
+
+func (r *cartRepository) applyTotalRangeFilter(db *gorm.DB, filters map[string]string) *gorm.DB {
+	vMin, okMin := filters["total_min"]
+	vMax, okMax := filters["total_max"]
+
+	if okMin && okMax {
+		if min, err1 := strconv.ParseFloat(vMin, 64); err1 == nil {
+			if max, err2 := strconv.ParseFloat(vMax, 64); err2 == nil {
+				db = db.Scopes(scope.ScopeCartByTotalRange(min, max))
+			}
+		}
+	}
+	return db
+}
+
+func (r *cartRepository) applyCreatedAfterFilter(db *gorm.DB, filters map[string]string) *gorm.DB {
+	if v, ok := filters["created_after"]; ok {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			db = db.Scopes(scope.ScopeCartCreatedAfter(t))
+		}
+	}
+	return db
+}
+
+func (r *cartRepository) applyCreatedBeforeFilter(db *gorm.DB, filters map[string]string) *gorm.DB {
+	if v, ok := filters["created_before"]; ok {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			db = db.Scopes(scope.ScopeCartCreatedBefore(t))
+		}
+	}
+	return db
 }
 
 func (r *cartRepository) Create(cart *model.Cart) error {

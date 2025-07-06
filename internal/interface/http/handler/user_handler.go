@@ -13,6 +13,18 @@ import (
 	"gorm.io/gorm"
 )
 
+// Error message constants
+const (
+	errInvalidToken     = "invalid token"
+	errInvalidUserID    = "invalid user ID"
+	errUserAccessDenied = "access denied"
+	errUserNotFound     = "user not found"
+	errInvalidRequest   = "invalid request"
+	errInvalidReqBody   = "invalid request body"
+	errInvalidCreds     = "invalid credentials"
+	errTokenGeneration  = "could not generate token"
+)
+
 type UserHandler struct {
 	Usecase usecase.UserUsecase
 }
@@ -21,28 +33,54 @@ func NewUserHandler(uc usecase.UserUsecase) *UserHandler {
 	return &UserHandler{Usecase: uc}
 }
 
-func (h *UserHandler) GetByID(c echo.Context) error {
+// getUserFromToken extracts user ID and role from token
+func (h *UserHandler) getUserFromToken(c echo.Context) (uint, string, error) {
 	uidToken, err := auth.UserIDFromContext(c)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+		return 0, "", echo.NewHTTPError(http.StatusUnauthorized, errInvalidToken)
 	}
 	role, err := auth.RoleFromContext(c)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+		return 0, "", echo.NewHTTPError(http.StatusUnauthorized, errInvalidToken)
+	}
+	return uidToken, role, nil
+}
+
+// checkUserAccess verifies if user can access the resource (admin or own resource)
+func (h *UserHandler) checkUserAccess(c echo.Context, targetUserID uint) error {
+	uidToken, role, err := h.getUserFromToken(c)
+	if err != nil {
+		return err
 	}
 
+	if role != "admin" && uidToken != targetUserID {
+		return echo.NewHTTPError(http.StatusForbidden, errUserAccessDenied)
+	}
+	return nil
+}
+
+// checkAdminAccess verifies if user has admin role
+func (h *UserHandler) checkAdminAccess(c echo.Context) error {
+	role, err := auth.RoleFromContext(c)
+	if err != nil || role != "admin" {
+		return echo.NewHTTPError(http.StatusForbidden, errUserAccessDenied)
+	}
+	return nil
+}
+
+func (h *UserHandler) GetByID(c echo.Context) error {
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid user ID")
+		return echo.NewHTTPError(http.StatusBadRequest, errInvalidUserID)
 	}
 
-	if role != "admin" && uidToken != id {
-		return echo.NewHTTPError(http.StatusForbidden, "access denied")
+	if err := h.checkUserAccess(c, id); err != nil {
+		return err
 	}
 
 	user, err := h.Usecase.GetByID(id)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return echo.NewHTTPError(http.StatusNotFound, "user not found")
+		return echo.NewHTTPError(http.StatusNotFound, errUserNotFound)
 	} else if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -51,9 +89,8 @@ func (h *UserHandler) GetByID(c echo.Context) error {
 }
 
 func (h *UserHandler) GetAll(c echo.Context) error {
-	role, err := auth.RoleFromContext(c)
-	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "access denied")
+	if err := h.checkAdminAccess(c); err != nil {
+		return err
 	}
 
 	users, err := h.Usecase.GetAll()
@@ -64,9 +101,8 @@ func (h *UserHandler) GetAll(c echo.Context) error {
 }
 
 func (h *UserHandler) Search(c echo.Context) error {
-	role, err := auth.RoleFromContext(c)
-	if err != nil || role != "admin" {
-		return echo.NewHTTPError(http.StatusForbidden, "access denied")
+	if err := h.checkAdminAccess(c); err != nil {
+		return err
 	}
 
 	filters := map[string]string{}
@@ -93,7 +129,7 @@ type registerInput struct {
 func (h *UserHandler) Register(c echo.Context) error {
 	var input registerInput
 	if err := c.Bind(&input); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+		return echo.NewHTTPError(http.StatusBadRequest, errInvalidRequest)
 	}
 
 	user := &model.User{
@@ -121,7 +157,7 @@ type loginInput struct {
 func (h *UserHandler) Login(c echo.Context) error {
 	var input loginInput
 	if err := c.Bind(&input); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+		return echo.NewHTTPError(http.StatusBadRequest, errInvalidRequest)
 	}
 	if err := c.Validate(&input); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
@@ -129,12 +165,12 @@ func (h *UserHandler) Login(c echo.Context) error {
 
 	user, err := h.Usecase.Login(input.Email, input.Password)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "invalid credentials")
+		return echo.NewHTTPError(http.StatusUnauthorized, errInvalidCreds)
 	}
 
 	token, err := auth.GenerateToken(user.ID, user.Role)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "could not generate token")
+		return echo.NewHTTPError(http.StatusInternalServerError, errTokenGeneration)
 	}
 
 	return c.JSON(http.StatusOK, echo.Map{
@@ -144,34 +180,25 @@ func (h *UserHandler) Login(c echo.Context) error {
 }
 
 func (h *UserHandler) Update(c echo.Context) error {
-	uidToken, err := auth.UserIDFromContext(c)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
-	}
-	role, err := auth.RoleFromContext(c)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
-	}
-
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid user ID")
+		return echo.NewHTTPError(http.StatusBadRequest, errInvalidUserID)
 	}
 
-	if role != "admin" && uidToken != id {
-		return echo.NewHTTPError(http.StatusForbidden, "access denied")
+	if err := h.checkUserAccess(c, id); err != nil {
+		return err
 	}
 
 	var input model.User
 	if err := c.Bind(&input); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+		return echo.NewHTTPError(http.StatusBadRequest, errInvalidReqBody)
 	}
 	input.ID = id
 	input.Role = ""
 
 	updated, err := h.Usecase.Update(&input)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return echo.NewHTTPError(http.StatusNotFound, "user not found")
+		return echo.NewHTTPError(http.StatusNotFound, errUserNotFound)
 	} else if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -180,27 +207,18 @@ func (h *UserHandler) Update(c echo.Context) error {
 }
 
 func (h *UserHandler) Delete(c echo.Context) error {
-	uidToken, err := auth.UserIDFromContext(c)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
-	}
-	role, err := auth.RoleFromContext(c)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
-	}
-
 	id, err := parseUintParam(c, "id")
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid user ID")
+		return echo.NewHTTPError(http.StatusBadRequest, errInvalidUserID)
 	}
 
-	if role != "admin" && uidToken != id {
-		return echo.NewHTTPError(http.StatusForbidden, "access denied")
+	if err := h.checkUserAccess(c, id); err != nil {
+		return err
 	}
 
 	err = h.Usecase.Delete(id)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return echo.NewHTTPError(http.StatusNotFound, "user not found")
+		return echo.NewHTTPError(http.StatusNotFound, errUserNotFound)
 	} else if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}

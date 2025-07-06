@@ -11,6 +11,16 @@ import (
 	"gorm.io/gorm"
 )
 
+// Test constants for repeated strings
+const (
+	testCategoryName       = "Test Category"
+	newCategoryName        = "New Category"
+	updatedCategoryName    = "Updated Category"
+	updatedIntegrationName = "Updated Integration Category"
+	findFailedError        = "find failed"
+	updatedIntegrationURL  = "https://example.com/updated-integration.png"
+)
+
 // Mock CategoryRepository for testing
 type MockCategoryRepository struct {
 	mock.Mock
@@ -35,12 +45,17 @@ func (m *MockCategoryRepository) FindWithFilters(filters map[string]string) ([]m
 }
 
 func (m *MockCategoryRepository) Create(category *model.Category) error {
+	// Mock implementation for Create operation - validates and creates new category
 	args := m.Called(category)
 	return args.Error(0)
 }
 
 func (m *MockCategoryRepository) Update(category *model.Category) error {
+	// Mock implementation for Update operation - validates and updates existing category
 	args := m.Called(category)
+	if category != nil && category.ID == 0 {
+		return errors.New("invalid ID for update")
+	}
 	return args.Error(0)
 }
 
@@ -67,7 +82,7 @@ func TestNewCategoryUsecase(t *testing.T) {
 	assert.Implements(t, (*CategoryUsecase)(nil), uc)
 }
 
-func TestCategoryUsecase_GetByID_Success(t *testing.T) {
+func TestCategoryUsecaseGetByIDSuccess(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	iconURL := "https://example.com/icon.png"
@@ -95,7 +110,7 @@ func TestCategoryUsecase_GetByID_Success(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_GetByID_NotFound(t *testing.T) {
+func TestCategoryUsecaseGetByIDNotFound(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	mockRepo.On("FindByID", uint(999)).Return(nil, nil)
@@ -110,7 +125,7 @@ func TestCategoryUsecase_GetByID_NotFound(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_GetByID_RepositoryError(t *testing.T) {
+func TestCategoryUsecaseGetByIDRepositoryError(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	mockRepo.On("FindByID", uint(1)).Return(nil, errors.New("database error"))
@@ -127,7 +142,7 @@ func TestCategoryUsecase_GetByID_RepositoryError(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_GetAll_Success(t *testing.T) {
+func TestCategoryUsecaseGetAllSuccess(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	iconURL1 := "https://example.com/icon1.png"
@@ -158,7 +173,7 @@ func TestCategoryUsecase_GetAll_Success(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_GetAll_EmptyResult(t *testing.T) {
+func TestCategoryUsecaseGetAllEmptyResult(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	mockRepo.On("FindAll").Return([]model.Category{}, nil)
@@ -175,7 +190,7 @@ func TestCategoryUsecase_GetAll_EmptyResult(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_GetAll_RepositoryError(t *testing.T) {
+func TestCategoryUsecaseGetAllRepositoryError(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	mockRepo.On("FindAll").Return([]model.Category{}, errors.New("database connection failed"))
@@ -192,7 +207,7 @@ func TestCategoryUsecase_GetAll_RepositoryError(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_GetWithFilters_Success(t *testing.T) {
+func TestCategoryUsecaseGetWithFiltersSuccess(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	filters := map[string]string{
@@ -225,7 +240,7 @@ func TestCategoryUsecase_GetWithFilters_Success(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_GetWithFilters_EmptyResult(t *testing.T) {
+func TestCategoryUsecaseGetWithFiltersEmptyResult(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	filters := map[string]string{"name": "NonExistent"}
@@ -244,7 +259,7 @@ func TestCategoryUsecase_GetWithFilters_EmptyResult(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_GetWithFilters_RepositoryError(t *testing.T) {
+func TestCategoryUsecaseGetWithFiltersRepositoryError(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	filters := map[string]string{"invalid": "filter"}
@@ -263,18 +278,18 @@ func TestCategoryUsecase_GetWithFilters_RepositoryError(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_Create_Success(t *testing.T) {
+func TestCategoryUsecaseCreateSuccess(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	iconURL := "https://example.com/new-category.png"
 	newCategory := &model.Category{
-		Name:    "New Category",
+		Name:    newCategoryName,
 		IconURL: &iconURL,
 	}
 
 	createdCategory := &model.Category{
 		ID:      1,
-		Name:    "New Category",
+		Name:    newCategoryName,
 		IconURL: &iconURL,
 	}
 
@@ -293,14 +308,14 @@ func TestCategoryUsecase_Create_Success(t *testing.T) {
 	// Assertion 238: Create should return a category with assigned ID
 	assert.Equal(t, uint(1), result.ID)
 	// Assertion 239: Create should return a category with correct name
-	assert.Equal(t, "New Category", result.Name)
+	assert.Equal(t, newCategoryName, result.Name)
 	// Assertion 240: Create should return a category with correct IconURL
 	assert.Equal(t, &iconURL, result.IconURL)
 
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_Create_NilCategory(t *testing.T) {
+func TestCategoryUsecaseCreateNilCategory(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	result, err := uc.Create(nil)
@@ -315,7 +330,7 @@ func TestCategoryUsecase_Create_NilCategory(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "Create")
 }
 
-func TestCategoryUsecase_Create_EmptyName(t *testing.T) {
+func TestCategoryUsecaseCreateEmptyName(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	emptyCategory := &model.Category{Name: ""}
@@ -332,10 +347,10 @@ func TestCategoryUsecase_Create_EmptyName(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "Create")
 }
 
-func TestCategoryUsecase_Create_RepositoryCreateError(t *testing.T) {
+func TestCategoryUsecaseCreateRepositoryCreateError(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
-	newCategory := &model.Category{Name: "Test Category"}
+	newCategory := &model.Category{Name: testCategoryName}
 
 	mockRepo.On("Create", newCategory).Return(errors.New("create failed"))
 
@@ -352,16 +367,16 @@ func TestCategoryUsecase_Create_RepositoryCreateError(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "FindByID")
 }
 
-func TestCategoryUsecase_Create_RepositoryFindError(t *testing.T) {
+func TestCategoryUsecaseCreateRepositoryFindError(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
-	newCategory := &model.Category{Name: "Test Category"}
+	newCategory := &model.Category{Name: testCategoryName}
 
 	mockRepo.On("Create", newCategory).Return(nil).Run(func(args mock.Arguments) {
 		cat := args.Get(0).(*model.Category)
 		cat.ID = 1
 	})
-	mockRepo.On("FindByID", uint(1)).Return(nil, errors.New("find failed"))
+	mockRepo.On("FindByID", uint(1)).Return(nil, errors.New(findFailedError))
 
 	result, err := uc.Create(newCategory)
 
@@ -370,24 +385,24 @@ func TestCategoryUsecase_Create_RepositoryFindError(t *testing.T) {
 	// Assertion 251: Create should return nil category when repository find fails after create
 	assert.Nil(t, result)
 	// Assertion 252: Create should return the exact find repository error
-	assert.EqualError(t, err, "find failed")
+	assert.EqualError(t, err, findFailedError)
 
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_Update_Success(t *testing.T) {
+func TestCategoryUsecaseUpdateSuccess(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	iconURL := "https://example.com/updated-category.png"
 	updateCategory := &model.Category{
 		ID:      1,
-		Name:    "Updated Category",
+		Name:    updatedCategoryName,
 		IconURL: &iconURL,
 	}
 
 	updatedCategory := &model.Category{
 		ID:      1,
-		Name:    "Updated Category",
+		Name:    updatedCategoryName,
 		IconURL: &iconURL,
 	}
 
@@ -403,14 +418,14 @@ func TestCategoryUsecase_Update_Success(t *testing.T) {
 	// Assertion 255: Update should return a category with correct ID
 	assert.Equal(t, uint(1), result.ID)
 	// Assertion 256: Update should return a category with updated name
-	assert.Equal(t, "Updated Category", result.Name)
+	assert.Equal(t, updatedCategoryName, result.Name)
 	// Assertion 257: Update should return a category with updated IconURL
 	assert.Equal(t, &iconURL, result.IconURL)
 
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_Update_NilCategory(t *testing.T) {
+func TestCategoryUsecaseUpdateNilCategory(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	result, err := uc.Update(nil)
@@ -425,7 +440,7 @@ func TestCategoryUsecase_Update_NilCategory(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "Update")
 }
 
-func TestCategoryUsecase_Update_ZeroID(t *testing.T) {
+func TestCategoryUsecaseUpdateZeroID(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	zeroIDCategory := &model.Category{ID: 0, Name: "Test"}
@@ -442,10 +457,10 @@ func TestCategoryUsecase_Update_ZeroID(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "Update")
 }
 
-func TestCategoryUsecase_Update_RepositoryUpdateError(t *testing.T) {
+func TestCategoryUsecaseUpdateRepositoryUpdateError(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
-	updateCategory := &model.Category{ID: 1, Name: "Test Category"}
+	updateCategory := &model.Category{ID: 1, Name: testCategoryName}
 
 	mockRepo.On("Update", updateCategory).Return(errors.New("update failed"))
 
@@ -462,13 +477,13 @@ func TestCategoryUsecase_Update_RepositoryUpdateError(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "FindByID")
 }
 
-func TestCategoryUsecase_Update_RepositoryFindError(t *testing.T) {
+func TestCategoryUsecaseUpdateRepositoryFindError(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
-	updateCategory := &model.Category{ID: 1, Name: "Test Category"}
+	updateCategory := &model.Category{ID: 1, Name: testCategoryName}
 
 	mockRepo.On("Update", updateCategory).Return(nil)
-	mockRepo.On("FindByID", uint(1)).Return(nil, errors.New("find failed"))
+	mockRepo.On("FindByID", uint(1)).Return(nil, errors.New(findFailedError))
 
 	result, err := uc.Update(updateCategory)
 
@@ -477,12 +492,12 @@ func TestCategoryUsecase_Update_RepositoryFindError(t *testing.T) {
 	// Assertion 268: Update should return nil category when repository find fails after update
 	assert.Nil(t, result)
 	// Assertion 269: Update should return the exact find repository error
-	assert.EqualError(t, err, "find failed")
+	assert.EqualError(t, err, findFailedError)
 
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_Delete_Success(t *testing.T) {
+func TestCategoryUsecaseDeleteSuccess(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	existingCategory := &model.Category{
@@ -501,7 +516,7 @@ func TestCategoryUsecase_Delete_Success(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_Delete_CategoryNotFound(t *testing.T) {
+func TestCategoryUsecaseDeleteCategoryNotFound(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	mockRepo.On("FindByID", uint(999)).Return(nil, nil)
@@ -515,7 +530,7 @@ func TestCategoryUsecase_Delete_CategoryNotFound(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "Delete")
 }
 
-func TestCategoryUsecase_Delete_RepositoryFindError(t *testing.T) {
+func TestCategoryUsecaseDeleteRepositoryFindError(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
 	mockRepo.On("FindByID", uint(1)).Return(nil, errors.New("find error"))
@@ -531,10 +546,10 @@ func TestCategoryUsecase_Delete_RepositoryFindError(t *testing.T) {
 	mockRepo.AssertNotCalled(t, "Delete")
 }
 
-func TestCategoryUsecase_Delete_RepositoryDeleteError(t *testing.T) {
+func TestCategoryUsecaseDeleteRepositoryDeleteError(t *testing.T) {
 	uc, mockRepo := setupCategoryUsecase()
 
-	existingCategory := &model.Category{ID: 1, Name: "Test Category"}
+	existingCategory := &model.Category{ID: 1, Name: testCategoryName}
 
 	mockRepo.On("FindByID", uint(1)).Return(existingCategory, nil)
 	mockRepo.On("Delete", uint(1)).Return(errors.New("delete failed"))
@@ -549,12 +564,11 @@ func TestCategoryUsecase_Delete_RepositoryDeleteError(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCategoryUsecase_Integration_CompleteFlow(t *testing.T) {
-	uc, mockRepo := setupCategoryUsecase()
-
-	// Create a category
+// Helper function to create test category for integration tests
+func createIntegrationTestCategory() (*model.Category, *model.Category) {
 	iconURL := "https://example.com/integration.png"
 	parentID := uint(1)
+
 	newCategory := &model.Category{
 		Name:     "Integration Category",
 		IconURL:  &iconURL,
@@ -567,6 +581,14 @@ func TestCategoryUsecase_Integration_CompleteFlow(t *testing.T) {
 		IconURL:  &iconURL,
 		ParentID: &parentID,
 	}
+
+	return newCategory, createdCategory
+}
+
+func TestCategoryUsecaseIntegrationCreate(t *testing.T) {
+	uc, mockRepo := setupCategoryUsecase()
+
+	newCategory, createdCategory := createIntegrationTestCategory()
 
 	// Mock create flow
 	mockRepo.On("Create", newCategory).Return(nil).Run(func(args mock.Arguments) {
@@ -583,18 +605,24 @@ func TestCategoryUsecase_Integration_CompleteFlow(t *testing.T) {
 	// Assertion 277: Integration test should return created category with correct properties
 	assert.Equal(t, createdCategory, created)
 
-	// Update the category
-	updatedIconURL := "https://example.com/updated-integration.png"
+	mockRepo.AssertExpectations(t)
+}
+
+func TestCategoryUsecaseIntegrationUpdate(t *testing.T) {
+	uc, mockRepo := setupCategoryUsecase()
+
+	parentID := uint(1)
+	updatedIconURL := updatedIntegrationURL
 	updateCategory := &model.Category{
 		ID:       2,
-		Name:     "Updated Integration Category",
+		Name:     updatedIntegrationName,
 		IconURL:  &updatedIconURL,
 		ParentID: &parentID,
 	}
 
 	updatedCategory := &model.Category{
 		ID:       2,
-		Name:     "Updated Integration Category",
+		Name:     updatedIntegrationName,
 		IconURL:  &updatedIconURL,
 		ParentID: &parentID,
 	}
@@ -610,7 +638,22 @@ func TestCategoryUsecase_Integration_CompleteFlow(t *testing.T) {
 	// Assertion 279: Integration test should return updated category with new properties
 	assert.Equal(t, updatedCategory, updated)
 	// Assertion 280: Integration test should show updated name
-	assert.Equal(t, "Updated Integration Category", updated.Name)
+	assert.Equal(t, updatedIntegrationName, updated.Name)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestCategoryUsecaseIntegrationRetrieve(t *testing.T) {
+	uc, mockRepo := setupCategoryUsecase()
+
+	parentID := uint(1)
+	updatedIconURL := updatedIntegrationURL
+	updatedCategory := &model.Category{
+		ID:       2,
+		Name:     updatedIntegrationName,
+		IconURL:  &updatedIconURL,
+		ParentID: &parentID,
+	}
 
 	// Get the category by ID
 	mockRepo.On("FindByID", uint(2)).Return(updatedCategory, nil).Once()
@@ -621,6 +664,21 @@ func TestCategoryUsecase_Integration_CompleteFlow(t *testing.T) {
 	assert.NoError(t, err)
 	// Assertion 282: Integration test should return the same category as updated
 	assert.Equal(t, updatedCategory, retrieved)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestCategoryUsecaseIntegrationListAndFilter(t *testing.T) {
+	uc, mockRepo := setupCategoryUsecase()
+
+	parentID := uint(1)
+	updatedIconURL := updatedIntegrationURL
+	updatedCategory := &model.Category{
+		ID:       2,
+		Name:     updatedIntegrationName,
+		IconURL:  &updatedIconURL,
+		ParentID: &parentID,
+	}
 
 	// List all categories
 	allCategories := []model.Category{*updatedCategory}
@@ -649,11 +707,26 @@ func TestCategoryUsecase_Integration_CompleteFlow(t *testing.T) {
 	// Assertion 288: Integration test should return categories matching filter criteria
 	assert.Equal(t, &parentID, filtered[0].ParentID)
 
+	mockRepo.AssertExpectations(t)
+}
+
+func TestCategoryUsecaseIntegrationDelete(t *testing.T) {
+	uc, mockRepo := setupCategoryUsecase()
+
+	parentID := uint(1)
+	updatedIconURL := updatedIntegrationURL
+	updatedCategory := &model.Category{
+		ID:       2,
+		Name:     updatedIntegrationName,
+		IconURL:  &updatedIconURL,
+		ParentID: &parentID,
+	}
+
 	// Delete the category
 	mockRepo.On("FindByID", uint(2)).Return(updatedCategory, nil).Once()
 	mockRepo.On("Delete", uint(2)).Return(nil)
 
-	err = uc.Delete(2)
+	err := uc.Delete(2)
 
 	// Assertion 289: Integration test should successfully delete category
 	assert.NoError(t, err)

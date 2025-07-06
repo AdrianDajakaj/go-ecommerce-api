@@ -8,6 +8,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// Test error message constants
+const (
+	errExpectedGormNotFound = "Expected gorm.ErrRecordNotFound, got %v"
+	errExpectedNoError      = "Expected no error, got %v"
+)
+
 // Mock ProductRepository for testing
 type mockProductRepository struct {
 	products []model.Product
@@ -79,7 +85,7 @@ func (m *mockProductRepository) Delete(id uint) error {
 	return gorm.ErrRecordNotFound
 }
 
-func TestProductUsecase_GetByID(t *testing.T) {
+func TestProductUsecaseGetByID(t *testing.T) {
 	repo := newMockProductRepository()
 	usecase := NewProductUsecase(repo)
 
@@ -87,7 +93,7 @@ func TestProductUsecase_GetByID(t *testing.T) {
 	product, err := usecase.GetByID(999)
 	// Assertion 1: Error should be ErrRecordNotFound for non-existent product
 	if err != gorm.ErrRecordNotFound {
-		t.Errorf("Expected gorm.ErrRecordNotFound, got %v", err)
+		t.Errorf(errExpectedGormNotFound, err)
 	}
 	// Assertion 2: Product should be nil when not found
 	if product != nil {
@@ -110,11 +116,12 @@ func TestProductUsecase_GetByID(t *testing.T) {
 	product, err = usecase.GetByID(1)
 	// Assertion 3: No error should occur when getting existing product
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Errorf(errExpectedNoError, err)
 	}
 	// Assertion 4: Product should not be nil when found
 	if product == nil {
 		t.Error("Expected product, got nil")
+		return
 	}
 	// Assertion 5: Product ID should match requested ID
 	if product.ID != 1 {
@@ -130,7 +137,7 @@ func TestProductUsecase_GetByID(t *testing.T) {
 	}
 }
 
-func TestProductUsecase_GetAll(t *testing.T) {
+func TestProductUsecaseGetAll(t *testing.T) {
 	repo := newMockProductRepository()
 	usecase := NewProductUsecase(repo)
 
@@ -138,7 +145,7 @@ func TestProductUsecase_GetAll(t *testing.T) {
 	products, err := usecase.GetAll()
 	// Assertion 8: No error should occur when getting all products from empty repo
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Errorf(errExpectedNoError, err)
 	}
 	// Assertion 9: Products slice should be empty initially
 	if len(products) != 0 {
@@ -160,7 +167,7 @@ func TestProductUsecase_GetAll(t *testing.T) {
 	products, err = usecase.GetAll()
 	// Assertion 10: No error should occur when getting all products
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Errorf(errExpectedNoError, err)
 	}
 	// Assertion 11: Should return correct number of products
 	if len(products) != 3 {
@@ -180,7 +187,7 @@ func TestProductUsecase_GetAll(t *testing.T) {
 	}
 }
 
-func TestProductUsecase_GetWithFilters(t *testing.T) {
+func TestProductUsecaseGetWithFilters(t *testing.T) {
 	repo := newMockProductRepository()
 	usecase := NewProductUsecase(repo)
 
@@ -200,7 +207,7 @@ func TestProductUsecase_GetWithFilters(t *testing.T) {
 	products, err := usecase.GetWithFilters(filters)
 	// Assertion 15: No error should occur when filtering by category
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Errorf(errExpectedNoError, err)
 	}
 	// Assertion 16: Should return products from category 1 only
 	if len(products) != 2 {
@@ -212,7 +219,7 @@ func TestProductUsecase_GetWithFilters(t *testing.T) {
 	products, err = usecase.GetWithFilters(filters)
 	// Assertion 17: No error should occur when filtering by active status
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Errorf(errExpectedNoError, err)
 	}
 	// Assertion 18: Should return only active products
 	if len(products) != 2 {
@@ -226,7 +233,7 @@ func TestProductUsecase_GetWithFilters(t *testing.T) {
 	}
 }
 
-func TestProductUsecase_Create(t *testing.T) {
+func TestProductUsecaseCreate(t *testing.T) {
 	repo := newMockProductRepository()
 	usecase := NewProductUsecase(repo)
 
@@ -270,11 +277,12 @@ func TestProductUsecase_Create(t *testing.T) {
 	product, err = usecase.Create(validProduct)
 	// Assertion 25: No error should occur for valid product creation
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Errorf(errExpectedNoError, err)
 	}
 	// Assertion 26: Created product should not be nil
 	if product == nil {
 		t.Error("Expected created product, got nil")
+		return
 	}
 	// Assertion 27: Created product should have assigned ID
 	if product.ID == 0 {
@@ -290,7 +298,7 @@ func TestProductUsecase_Create(t *testing.T) {
 	}
 }
 
-func TestProductUsecase_Update(t *testing.T) {
+func TestProductUsecaseUpdate(t *testing.T) {
 	repo := newMockProductRepository()
 	usecase := NewProductUsecase(repo)
 
@@ -307,7 +315,7 @@ func TestProductUsecase_Update(t *testing.T) {
 
 	// Test Case 11: Update with zero ID
 	zeroIDProduct := &model.Product{ID: 0, Name: "Test"}
-	product, err = usecase.Update(zeroIDProduct)
+	_, err = usecase.Update(zeroIDProduct)
 	// Assertion 32: Should return error for zero ID
 	if err == nil {
 		t.Error("Expected error for zero ID")
@@ -330,10 +338,10 @@ func TestProductUsecase_Update(t *testing.T) {
 
 	// Test Case 12: Update non-existent product
 	nonExistentProduct := &model.Product{ID: 999, Name: "Non-existent"}
-	product, err = usecase.Update(nonExistentProduct)
+	_, err = usecase.Update(nonExistentProduct)
 	// Assertion 34: Should return ErrRecordNotFound for non-existent product
 	if err != gorm.ErrRecordNotFound {
-		t.Errorf("Expected gorm.ErrRecordNotFound, got %v", err)
+		t.Errorf(errExpectedGormNotFound, err)
 	}
 
 	// Test Case 13: Update existing product
@@ -349,11 +357,12 @@ func TestProductUsecase_Update(t *testing.T) {
 	product, err = usecase.Update(updateProduct)
 	// Assertion 35: No error should occur for valid update
 	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+		t.Errorf(errExpectedNoError, err)
 	}
 	// Assertion 36: Updated product should not be nil
 	if product == nil {
 		t.Error("Expected updated product, got nil")
+		return
 	}
 	// Assertion 37: Updated product name should match
 	if product.Name != "Updated Product" {
@@ -369,7 +378,7 @@ func TestProductUsecase_Update(t *testing.T) {
 	}
 }
 
-func TestProductUsecase_Delete(t *testing.T) {
+func TestProductUsecaseDelete(t *testing.T) {
 	repo := newMockProductRepository()
 	usecase := NewProductUsecase(repo)
 
@@ -377,7 +386,7 @@ func TestProductUsecase_Delete(t *testing.T) {
 	err := usecase.Delete(999)
 	// Assertion 40: Should return ErrRecordNotFound for non-existent product
 	if err != gorm.ErrRecordNotFound {
-		t.Errorf("Expected gorm.ErrRecordNotFound, got %v", err)
+		t.Errorf(errExpectedGormNotFound, err)
 	}
 
 	// Setup existing product
@@ -432,23 +441,33 @@ func TestProductUsecase_Delete(t *testing.T) {
 	}
 }
 
-func TestProductUsecase_Integration(t *testing.T) {
-	repo := newMockProductRepository()
-	usecase := NewProductUsecase(repo)
-
-	// Test Case 16: Complete product lifecycle
-	// Create multiple products
+// Helper function to create test products
+func createTestProducts(usecase ProductUsecase) []*model.Product {
 	products := []*model.Product{
 		{Name: "Product A", Price: 100.0, Currency: "USD", Stock: 10, IsActive: true, CategoryID: 1},
 		{Name: "Product B", Price: 200.0, Currency: "USD", Stock: 5, IsActive: true, CategoryID: 2},
 		{Name: "Product C", Price: 150.0, Currency: "USD", Stock: 0, IsActive: false, CategoryID: 1},
 	}
 
+	var createdProducts []*model.Product
 	for _, p := range products {
-		created, err := usecase.Create(p)
-		// Assertion 48: Each product creation should succeed
-		if err != nil {
-			t.Errorf("Expected no error creating product, got %v", err)
+		created, _ := usecase.Create(p)
+		createdProducts = append(createdProducts, created)
+	}
+	return createdProducts
+}
+
+func TestProductUsecaseIntegrationCreateMultiple(t *testing.T) {
+	repo := newMockProductRepository()
+	usecase := NewProductUsecase(repo)
+
+	products := createTestProducts(usecase)
+
+	// Assertion 48: Each product creation should succeed
+	for i, created := range products {
+		if created == nil {
+			t.Errorf("Product %d creation failed", i+1)
+			continue
 		}
 		// Assertion 49: Each created product should have valid ID
 		if created.ID == 0 {
@@ -466,6 +485,13 @@ func TestProductUsecase_Integration(t *testing.T) {
 	if len(allProducts) != 3 {
 		t.Errorf("Expected 3 products, got %d", len(allProducts))
 	}
+}
+
+func TestProductUsecaseIntegrationFilterActive(t *testing.T) {
+	repo := newMockProductRepository()
+	usecase := NewProductUsecase(repo)
+
+	createTestProducts(usecase)
 
 	// Filter active products
 	activeFilters := map[string]string{"is_active": "true"}
@@ -478,6 +504,13 @@ func TestProductUsecase_Integration(t *testing.T) {
 	if len(activeProducts) != 2 {
 		t.Errorf("Expected 2 active products, got %d", len(activeProducts))
 	}
+}
+
+func TestProductUsecaseIntegrationUpdateProduct(t *testing.T) {
+	repo := newMockProductRepository()
+	usecase := NewProductUsecase(repo)
+
+	createTestProducts(usecase)
 
 	// Update first product
 	updateData := &model.Product{
@@ -502,9 +535,16 @@ func TestProductUsecase_Integration(t *testing.T) {
 	if updated.Price != 120.0 {
 		t.Errorf("Expected price 120.0, got %f", updated.Price)
 	}
+}
+
+func TestProductUsecaseIntegrationDeleteProduct(t *testing.T) {
+	repo := newMockProductRepository()
+	usecase := NewProductUsecase(repo)
+
+	createTestProducts(usecase)
 
 	// Delete second product
-	err = usecase.Delete(2)
+	err := usecase.Delete(2)
 	// Assertion 57: No error should occur during deletion
 	if err != nil {
 		t.Errorf("Expected no error deleting product, got %v", err)

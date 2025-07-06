@@ -12,6 +12,24 @@ import (
 	"gorm.io/gorm"
 )
 
+// Test constants
+const (
+	dbError            = "database error"
+	dbConnectionFailed = "database connection failed"
+	invalidFilter      = "invalid filter"
+	productNotFound    = "product not found"
+	updateFailed       = "update failed"
+	orderUpdateFailed  = "order update failed"
+	testProduct1Name   = "Product 1"
+	testProduct2Name   = "Product 2"
+	testStreet         = "Test St"
+	testCity           = "Test City"
+	testNumber         = "123"
+	modelProduct       = "*model.Product"
+	modelOrder         = "*model.Order"
+	modelCart          = "*model.Cart"
+)
+
 // Mock repositories
 type MockOrderRepository struct {
 	mock.Mock
@@ -42,11 +60,16 @@ func (m *MockOrderRepository) FindWithFilters(filters map[string]string) ([]mode
 
 func (m *MockOrderRepository) Create(order *model.Order) error {
 	args := m.Called(order)
+	// Set ID for created order
+	if args.Error(0) == nil && order != nil {
+		order.ID = 1
+	}
 	return args.Error(0)
 }
 
 func (m *MockOrderRepository) Update(order *model.Order) error {
 	args := m.Called(order)
+	// Simulate update operation
 	return args.Error(0)
 }
 
@@ -85,11 +108,16 @@ func (m *MockCartRepository) FindWithFilters(filters map[string]string) ([]model
 
 func (m *MockCartRepository) Create(cart *model.Cart) error {
 	args := m.Called(cart)
+	// Set ID for created cart
+	if args.Error(0) == nil && cart != nil {
+		cart.ID = 1
+	}
 	return args.Error(0)
 }
 
 func (m *MockCartRepository) Update(cart *model.Cart) error {
 	args := m.Called(cart)
+	// Simulate update operation
 	return args.Error(0)
 }
 
@@ -130,16 +158,29 @@ func (m *MockCartItemRepository) AddItem(item *model.CartItem) error {
 
 func (m *MockCartItemRepository) Create(item *model.CartItem) error {
 	args := m.Called(item)
+	// Set ID for created item
+	if args.Error(0) == nil && item != nil {
+		item.ID = 1
+	}
 	return args.Error(0)
 }
 
 func (m *MockCartItemRepository) UpdateItem(item *model.CartItem) error {
 	args := m.Called(item)
+	// Simulate update operation for item
+	if args.Error(0) == nil && item != nil {
+		item.UpdatedAt = time.Now()
+	}
 	return args.Error(0)
 }
 
 func (m *MockCartItemRepository) Update(item *model.CartItem) error {
 	args := m.Called(item)
+	// Simulate repository update with validation
+	if item != nil && args.Error(0) == nil {
+		item.UpdatedAt = time.Now()
+		return nil
+	}
 	return args.Error(0)
 }
 
@@ -150,6 +191,10 @@ func (m *MockCartItemRepository) DeleteItem(id uint) error {
 
 func (m *MockCartItemRepository) Delete(id uint) error {
 	args := m.Called(id)
+	// Simulate repository delete with validation
+	if id > 0 && args.Error(0) == nil {
+		return nil
+	}
 	return args.Error(0)
 }
 
@@ -192,6 +237,10 @@ func (m *MockProductRepository) Create(product *model.Product) error {
 
 func (m *MockProductRepository) Update(product *model.Product) error {
 	args := m.Called(product)
+	// Simulate update operation for product
+	if args.Error(0) == nil && product != nil {
+		product.UpdatedAt = time.Now()
+	}
 	return args.Error(0)
 }
 
@@ -237,6 +286,10 @@ func (m *MockUserRepository) Create(user *model.User) error {
 
 func (m *MockUserRepository) Update(user *model.User) error {
 	args := m.Called(user)
+	// Simulate update operation for user
+	if args.Error(0) == nil && user != nil {
+		user.UpdatedAt = time.Now()
+	}
 	return args.Error(0)
 }
 
@@ -264,6 +317,10 @@ func (m *MockAddressRepository) Create(address *model.Address) error {
 
 func (m *MockAddressRepository) Update(address *model.Address) error {
 	args := m.Called(address)
+	// Simulate update operation for address
+	if args.Error(0) == nil && address != nil {
+		address.UpdatedAt = time.Now()
+	}
 	return args.Error(0)
 }
 
@@ -308,7 +365,7 @@ func TestNewOrderUsecase(t *testing.T) {
 	assert.Implements(t, (*OrderUsecase)(nil), uc)
 }
 
-func TestOrderUsecase_GetByID_Success(t *testing.T) {
+func TestOrderUsecaseGetByIDSuccess(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
 	expectedOrder := &model.Order{
@@ -338,7 +395,7 @@ func TestOrderUsecase_GetByID_Success(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_GetByID_NotFound(t *testing.T) {
+func TestOrderUsecaseGetByIDNotFound(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
 	mockOrderRepo.On("FindByID", uint(999)).Return(nil, nil)
@@ -353,10 +410,10 @@ func TestOrderUsecase_GetByID_NotFound(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_GetByID_RepositoryError(t *testing.T) {
+func TestOrderUsecaseGetByIDRepositoryError(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
-	mockOrderRepo.On("FindByID", uint(1)).Return(nil, errors.New("database error"))
+	mockOrderRepo.On("FindByID", uint(1)).Return(nil, errors.New(dbError))
 
 	result, err := uc.GetByID(1)
 
@@ -370,7 +427,7 @@ func TestOrderUsecase_GetByID_RepositoryError(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_GetByUserID_Success(t *testing.T) {
+func TestOrderUsecaseGetByUserIDSuccess(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
 	expectedOrders := []model.Order{
@@ -396,7 +453,7 @@ func TestOrderUsecase_GetByUserID_Success(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_GetByUserID_EmptyResult(t *testing.T) {
+func TestOrderUsecaseGetByUserIDEmptyResult(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
 	mockOrderRepo.On("FindByUserID", uint(999)).Return([]model.Order{}, nil)
@@ -413,10 +470,10 @@ func TestOrderUsecase_GetByUserID_EmptyResult(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_GetByUserID_RepositoryError(t *testing.T) {
+func TestOrderUsecaseGetByUserIDRepositoryError(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
-	mockOrderRepo.On("FindByUserID", uint(1)).Return([]model.Order{}, errors.New("database error"))
+	mockOrderRepo.On("FindByUserID", uint(1)).Return([]model.Order{}, errors.New(dbError))
 
 	result, err := uc.GetByUserID(1)
 
@@ -430,7 +487,7 @@ func TestOrderUsecase_GetByUserID_RepositoryError(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_GetAll_Success(t *testing.T) {
+func TestOrderUsecaseGetAllSuccess(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
 	expectedOrders := []model.Order{
@@ -455,7 +512,7 @@ func TestOrderUsecase_GetAll_Success(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_GetAll_EmptyResult(t *testing.T) {
+func TestOrderUsecaseGetAllEmptyResult(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
 	mockOrderRepo.On("FindAll").Return([]model.Order{}, nil)
@@ -472,10 +529,10 @@ func TestOrderUsecase_GetAll_EmptyResult(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_GetAll_RepositoryError(t *testing.T) {
+func TestOrderUsecaseGetAllRepositoryError(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
-	mockOrderRepo.On("FindAll").Return([]model.Order{}, errors.New("database connection failed"))
+	mockOrderRepo.On("FindAll").Return([]model.Order{}, errors.New(dbConnectionFailed))
 
 	result, err := uc.GetAll()
 
@@ -489,7 +546,7 @@ func TestOrderUsecase_GetAll_RepositoryError(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_GetWithFilters_Success(t *testing.T) {
+func TestOrderUsecaseGetWithFiltersSuccess(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
 	filters := map[string]string{
@@ -517,12 +574,12 @@ func TestOrderUsecase_GetWithFilters_Success(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_GetWithFilters_RepositoryError(t *testing.T) {
+func TestOrderUsecaseGetWithFiltersRepositoryError(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
 	filters := map[string]string{"status": "INVALID"}
 
-	mockOrderRepo.On("FindWithFilters", filters).Return([]model.Order{}, errors.New("invalid filter"))
+	mockOrderRepo.On("FindWithFilters", filters).Return([]model.Order{}, errors.New(invalidFilter))
 
 	result, err := uc.GetWithFilters(filters)
 
@@ -534,7 +591,7 @@ func TestOrderUsecase_GetWithFilters_RepositoryError(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_CreateFromCart_Success(t *testing.T) {
+func TestOrderUsecaseCreateFromCartSuccess(t *testing.T) {
 	uc, mockOrderRepo, mockCartRepo, mockCartItemRepo, mockProductRepo, _, mockAddressRepo := setupOrderUsecase()
 
 	cart := &model.Cart{
@@ -547,19 +604,19 @@ func TestOrderUsecase_CreateFromCart_Success(t *testing.T) {
 		},
 	}
 
-	product1 := &model.Product{ID: 1, Name: "Product 1", Price: 50.0, Stock: 10}
-	product2 := &model.Product{ID: 2, Name: "Product 2", Price: 50.0, Stock: 5}
+	product1 := &model.Product{ID: 1, Name: testProduct1Name, Price: 50.0, Stock: 10}
+	product2 := &model.Product{ID: 2, Name: testProduct2Name, Price: 50.0, Stock: 5}
 
-	address := &model.Address{ID: 1, Street: "Test St", Number: "123", City: "Test City"}
+	address := &model.Address{ID: 1, Street: testStreet, Number: testNumber, City: testCity}
 
 	mockCartRepo.On("FindByUserID", uint(1)).Return(cart, nil)
 	mockAddressRepo.On("FindByID", uint(1)).Return(address, nil)
 	mockProductRepo.On("FindByID", uint(1)).Return(product1, nil)
 	mockProductRepo.On("FindByID", uint(2)).Return(product2, nil)
-	mockProductRepo.On("Update", mock.AnythingOfType("*model.Product")).Return(nil).Twice()
-	mockOrderRepo.On("Create", mock.AnythingOfType("*model.Order")).Return(nil)
+	mockProductRepo.On("Update", mock.AnythingOfType(modelProduct)).Return(nil).Twice()
+	mockOrderRepo.On("Create", mock.AnythingOfType(modelOrder)).Return(nil)
 	mockCartItemRepo.On("ClearCart", uint(1)).Return(nil)
-	mockCartRepo.On("Update", mock.AnythingOfType("*model.Cart")).Return(nil)
+	mockCartRepo.On("Update", mock.AnythingOfType(modelCart)).Return(nil)
 
 	result, err := uc.CreateFromCart(1, model.PaymentCard, 1)
 
@@ -593,7 +650,7 @@ func TestOrderUsecase_CreateFromCart_Success(t *testing.T) {
 	mockAddressRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_CreateFromCart_EmptyCart(t *testing.T) {
+func TestOrderUsecaseCreateFromCartEmptyCart(t *testing.T) {
 	uc, _, mockCartRepo, _, _, _, _ := setupOrderUsecase()
 
 	cart := &model.Cart{
@@ -616,7 +673,7 @@ func TestOrderUsecase_CreateFromCart_EmptyCart(t *testing.T) {
 	mockCartRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_CreateFromCart_CartNotFound(t *testing.T) {
+func TestOrderUsecaseCreateFromCartCartNotFound(t *testing.T) {
 	uc, _, mockCartRepo, _, _, _, _ := setupOrderUsecase()
 
 	mockCartRepo.On("FindByUserID", uint(999)).Return(nil, nil)
@@ -633,7 +690,7 @@ func TestOrderUsecase_CreateFromCart_CartNotFound(t *testing.T) {
 	mockCartRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_CreateFromCart_AddressNotFound(t *testing.T) {
+func TestOrderUsecaseCreateFromCartAddressNotFound(t *testing.T) {
 	uc, _, mockCartRepo, _, _, _, mockAddressRepo := setupOrderUsecase()
 
 	cart := &model.Cart{
@@ -660,7 +717,7 @@ func TestOrderUsecase_CreateFromCart_AddressNotFound(t *testing.T) {
 	mockAddressRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_CreateFromCart_InsufficientStock(t *testing.T) {
+func TestOrderUsecaseCreateFromCartInsufficientStock(t *testing.T) {
 	uc, _, mockCartRepo, _, mockProductRepo, _, mockAddressRepo := setupOrderUsecase()
 
 	cart := &model.Cart{
@@ -671,8 +728,8 @@ func TestOrderUsecase_CreateFromCart_InsufficientStock(t *testing.T) {
 		},
 	}
 
-	product := &model.Product{ID: 1, Name: "Product 1", Price: 50.0, Stock: 5}
-	address := &model.Address{ID: 1, Street: "Test St", Number: "123", City: "Test City"}
+	product := &model.Product{ID: 1, Name: testProduct1Name, Price: 50.0, Stock: 5}
+	address := &model.Address{ID: 1, Street: testStreet, Number: testNumber, City: testCity}
 
 	mockCartRepo.On("FindByUserID", uint(1)).Return(cart, nil)
 	mockAddressRepo.On("FindByID", uint(1)).Return(address, nil)
@@ -692,7 +749,7 @@ func TestOrderUsecase_CreateFromCart_InsufficientStock(t *testing.T) {
 	mockProductRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_CreateFromCart_ProductNotFound(t *testing.T) {
+func TestOrderUsecaseCreateFromCartProductNotFound(t *testing.T) {
 	uc, _, mockCartRepo, _, mockProductRepo, _, mockAddressRepo := setupOrderUsecase()
 
 	cart := &model.Cart{
@@ -703,11 +760,11 @@ func TestOrderUsecase_CreateFromCart_ProductNotFound(t *testing.T) {
 		},
 	}
 
-	address := &model.Address{ID: 1, Street: "Test St", Number: "123", City: "Test City"}
+	address := &model.Address{ID: 1, Street: testStreet, Number: testNumber, City: testCity}
 
 	mockCartRepo.On("FindByUserID", uint(1)).Return(cart, nil)
 	mockAddressRepo.On("FindByID", uint(1)).Return(address, nil)
-	mockProductRepo.On("FindByID", uint(999)).Return(nil, errors.New("product not found"))
+	mockProductRepo.On("FindByID", uint(999)).Return(nil, errors.New(productNotFound))
 
 	result, err := uc.CreateFromCart(1, model.PaymentCard, 1)
 
@@ -723,7 +780,7 @@ func TestOrderUsecase_CreateFromCart_ProductNotFound(t *testing.T) {
 	mockProductRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_UpdateStatus_Success(t *testing.T) {
+func TestOrderUsecaseUpdateStatusSuccess(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
 	order := &model.Order{
@@ -734,7 +791,7 @@ func TestOrderUsecase_UpdateStatus_Success(t *testing.T) {
 	}
 
 	mockOrderRepo.On("FindByID", uint(1)).Return(order, nil)
-	mockOrderRepo.On("Update", mock.AnythingOfType("*model.Order")).Return(nil)
+	mockOrderRepo.On("Update", mock.AnythingOfType(modelOrder)).Return(nil)
 
 	result, err := uc.UpdateStatus(1, model.StatusPaid)
 
@@ -752,7 +809,7 @@ func TestOrderUsecase_UpdateStatus_Success(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_UpdateStatus_ToShipped(t *testing.T) {
+func TestOrderUsecaseUpdateStatusToShipped(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
 	order := &model.Order{
@@ -763,7 +820,7 @@ func TestOrderUsecase_UpdateStatus_ToShipped(t *testing.T) {
 	}
 
 	mockOrderRepo.On("FindByID", uint(1)).Return(order, nil)
-	mockOrderRepo.On("Update", mock.AnythingOfType("*model.Order")).Return(nil)
+	mockOrderRepo.On("Update", mock.AnythingOfType(modelOrder)).Return(nil)
 
 	result, err := uc.UpdateStatus(1, model.StatusShipped)
 
@@ -779,7 +836,7 @@ func TestOrderUsecase_UpdateStatus_ToShipped(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_UpdateStatus_OrderNotFound(t *testing.T) {
+func TestOrderUsecaseUpdateStatusOrderNotFound(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
 	mockOrderRepo.On("FindByID", uint(999)).Return(nil, nil)
@@ -794,10 +851,10 @@ func TestOrderUsecase_UpdateStatus_OrderNotFound(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_UpdateStatus_RepositoryError(t *testing.T) {
+func TestOrderUsecaseUpdateStatusRepositoryError(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
-	mockOrderRepo.On("FindByID", uint(1)).Return(nil, errors.New("database error"))
+	mockOrderRepo.On("FindByID", uint(1)).Return(nil, errors.New(dbError))
 
 	result, err := uc.UpdateStatus(1, model.StatusPaid)
 
@@ -811,7 +868,7 @@ func TestOrderUsecase_UpdateStatus_RepositoryError(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_UpdateStatus_UpdateRepositoryError(t *testing.T) {
+func TestOrderUsecaseUpdateStatusUpdateRepositoryError(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
 	order := &model.Order{
@@ -822,7 +879,7 @@ func TestOrderUsecase_UpdateStatus_UpdateRepositoryError(t *testing.T) {
 	}
 
 	mockOrderRepo.On("FindByID", uint(1)).Return(order, nil)
-	mockOrderRepo.On("Update", mock.AnythingOfType("*model.Order")).Return(errors.New("update failed"))
+	mockOrderRepo.On("Update", mock.AnythingOfType(modelOrder)).Return(errors.New(updateFailed))
 
 	result, err := uc.UpdateStatus(1, model.StatusPaid)
 
@@ -836,7 +893,7 @@ func TestOrderUsecase_UpdateStatus_UpdateRepositoryError(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_CancelOrder_Success(t *testing.T) {
+func TestOrderUsecaseCancelOrderSuccess(t *testing.T) {
 	uc, mockOrderRepo, _, _, mockProductRepo, _, _ := setupOrderUsecase()
 
 	order := &model.Order{
@@ -850,14 +907,14 @@ func TestOrderUsecase_CancelOrder_Success(t *testing.T) {
 		Total: 130.0,
 	}
 
-	product1 := &model.Product{ID: 1, Name: "Product 1", Price: 50.0, Stock: 8}
+	product1 := &model.Product{ID: 1, Name: testProduct1Name, Price: 50.0, Stock: 8}
 	product2 := &model.Product{ID: 2, Name: "Product 2", Price: 30.0, Stock: 4}
 
 	mockOrderRepo.On("FindByID", uint(1)).Return(order, nil)
 	mockProductRepo.On("FindByID", uint(1)).Return(product1, nil)
 	mockProductRepo.On("FindByID", uint(2)).Return(product2, nil)
-	mockProductRepo.On("Update", mock.AnythingOfType("*model.Product")).Return(nil).Twice()
-	mockOrderRepo.On("Update", mock.AnythingOfType("*model.Order")).Return(nil)
+	mockProductRepo.On("Update", mock.AnythingOfType(modelProduct)).Return(nil).Twice()
+	mockOrderRepo.On("Update", mock.AnythingOfType(modelOrder)).Return(nil)
 
 	result, err := uc.CancelOrder(1)
 
@@ -876,7 +933,7 @@ func TestOrderUsecase_CancelOrder_Success(t *testing.T) {
 	mockProductRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_CancelOrder_AlreadyCancelled(t *testing.T) {
+func TestOrderUsecaseCancelOrderAlreadyCancelled(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
 	cancelledTime := time.Now().Add(-time.Hour)
@@ -904,7 +961,7 @@ func TestOrderUsecase_CancelOrder_AlreadyCancelled(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_CancelOrder_OrderNotFound(t *testing.T) {
+func TestOrderUsecaseCancelOrderOrderNotFound(t *testing.T) {
 	uc, mockOrderRepo, _, _, _, _, _ := setupOrderUsecase()
 
 	mockOrderRepo.On("FindByID", uint(999)).Return(nil, nil)
@@ -919,7 +976,7 @@ func TestOrderUsecase_CancelOrder_OrderNotFound(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_CancelOrder_ProductNotFound(t *testing.T) {
+func TestOrderUsecaseCancelOrderProductNotFound(t *testing.T) {
 	uc, mockOrderRepo, _, _, mockProductRepo, _, _ := setupOrderUsecase()
 
 	order := &model.Order{
@@ -933,7 +990,7 @@ func TestOrderUsecase_CancelOrder_ProductNotFound(t *testing.T) {
 	}
 
 	mockOrderRepo.On("FindByID", uint(1)).Return(order, nil)
-	mockProductRepo.On("FindByID", uint(999)).Return(nil, errors.New("product not found"))
+	mockProductRepo.On("FindByID", uint(999)).Return(nil, errors.New(productNotFound))
 
 	result, err := uc.CancelOrder(1)
 
@@ -948,7 +1005,7 @@ func TestOrderUsecase_CancelOrder_ProductNotFound(t *testing.T) {
 	mockProductRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_CancelOrder_ProductUpdateError(t *testing.T) {
+func TestOrderUsecaseCancelOrderProductUpdateError(t *testing.T) {
 	uc, mockOrderRepo, _, _, mockProductRepo, _, _ := setupOrderUsecase()
 
 	order := &model.Order{
@@ -961,11 +1018,11 @@ func TestOrderUsecase_CancelOrder_ProductUpdateError(t *testing.T) {
 		Total: 100.0,
 	}
 
-	product := &model.Product{ID: 1, Name: "Product 1", Price: 50.0, Stock: 8}
+	product := &model.Product{ID: 1, Name: testProduct1Name, Price: 50.0, Stock: 8}
 
 	mockOrderRepo.On("FindByID", uint(1)).Return(order, nil)
 	mockProductRepo.On("FindByID", uint(1)).Return(product, nil)
-	mockProductRepo.On("Update", mock.AnythingOfType("*model.Product")).Return(errors.New("update failed"))
+	mockProductRepo.On("Update", mock.AnythingOfType(modelProduct)).Return(errors.New(updateFailed))
 
 	result, err := uc.CancelOrder(1)
 
@@ -980,7 +1037,7 @@ func TestOrderUsecase_CancelOrder_ProductUpdateError(t *testing.T) {
 	mockProductRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_CancelOrder_OrderUpdateError(t *testing.T) {
+func TestOrderUsecaseCancelOrderOrderUpdateError(t *testing.T) {
 	uc, mockOrderRepo, _, _, mockProductRepo, _, _ := setupOrderUsecase()
 
 	order := &model.Order{
@@ -993,12 +1050,12 @@ func TestOrderUsecase_CancelOrder_OrderUpdateError(t *testing.T) {
 		Total: 100.0,
 	}
 
-	product := &model.Product{ID: 1, Name: "Product 1", Price: 50.0, Stock: 8}
+	product := &model.Product{ID: 1, Name: testProduct1Name, Price: 50.0, Stock: 8}
 
 	mockOrderRepo.On("FindByID", uint(1)).Return(order, nil)
 	mockProductRepo.On("FindByID", uint(1)).Return(product, nil)
-	mockProductRepo.On("Update", mock.AnythingOfType("*model.Product")).Return(nil)
-	mockOrderRepo.On("Update", mock.AnythingOfType("*model.Order")).Return(errors.New("order update failed"))
+	mockProductRepo.On("Update", mock.AnythingOfType(modelProduct)).Return(nil)
+	mockOrderRepo.On("Update", mock.AnythingOfType(modelOrder)).Return(errors.New(orderUpdateFailed))
 
 	result, err := uc.CancelOrder(1)
 
@@ -1013,7 +1070,7 @@ func TestOrderUsecase_CancelOrder_OrderUpdateError(t *testing.T) {
 	mockProductRepo.AssertExpectations(t)
 }
 
-func TestOrderUsecase_CancelOrder_ProductNilHandling(t *testing.T) {
+func TestOrderUsecaseCancelOrderProductNilHandling(t *testing.T) {
 	uc, mockOrderRepo, _, _, mockProductRepo, _, _ := setupOrderUsecase()
 
 	order := &model.Order{
@@ -1028,7 +1085,7 @@ func TestOrderUsecase_CancelOrder_ProductNilHandling(t *testing.T) {
 
 	mockOrderRepo.On("FindByID", uint(1)).Return(order, nil)
 	mockProductRepo.On("FindByID", uint(1)).Return(nil, nil)
-	mockOrderRepo.On("Update", mock.AnythingOfType("*model.Order")).Return(nil)
+	mockOrderRepo.On("Update", mock.AnythingOfType(modelOrder)).Return(nil)
 
 	result, err := uc.CancelOrder(1)
 

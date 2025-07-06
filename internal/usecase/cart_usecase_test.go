@@ -139,7 +139,7 @@ func (m *mockCartItemRepository) ClearCart(cartID uint) error {
 	return nil
 }
 
-func TestCartUsecase_GetByUserID(t *testing.T) {
+func TestCartUsecaseGetByUserID(t *testing.T) {
 	cartRepo := newMockCartRepository()
 	cartItemRepo := newMockCartItemRepository()
 	productRepo := newMockProductRepository()
@@ -172,6 +172,7 @@ func TestCartUsecase_GetByUserID(t *testing.T) {
 	// Assertion 64: Cart should not be nil when found
 	if cart == nil {
 		t.Error("Expected cart, got nil")
+		return
 	}
 	// Assertion 65: Cart UserID should match requested user
 	if cart.UserID != 1 {
@@ -183,7 +184,7 @@ func TestCartUsecase_GetByUserID(t *testing.T) {
 	}
 }
 
-func TestCartUsecase_GetWithFilters(t *testing.T) {
+func TestCartUsecaseGetWithFilters(t *testing.T) {
 	cartRepo := newMockCartRepository()
 	cartItemRepo := newMockCartItemRepository()
 	productRepo := newMockProductRepository()
@@ -221,7 +222,7 @@ func TestCartUsecase_GetWithFilters(t *testing.T) {
 	}
 }
 
-func TestCartUsecase_AddProduct(t *testing.T) {
+func TestCartUsecaseAddProduct(t *testing.T) {
 	cartRepo := newMockCartRepository()
 	cartItemRepo := newMockCartItemRepository()
 	productRepo := newMockProductRepository()
@@ -260,7 +261,7 @@ func TestCartUsecase_AddProduct(t *testing.T) {
 	}
 
 	// Test Case 22: Add non-existent product
-	cart, err = usecase.AddProduct(1, 999, 1)
+	_, err = usecase.AddProduct(1, 999, 1)
 	// Assertion 75: Should return error for non-existent product
 	if err == nil {
 		t.Error("Expected error for non-existent product")
@@ -285,13 +286,8 @@ func TestCartUsecase_AddProduct(t *testing.T) {
 	}
 }
 
-func TestCartUsecase_Integration_CompleteFlow(t *testing.T) {
-	cartRepo := newMockCartRepository()
-	cartItemRepo := newMockCartItemRepository()
-	productRepo := newMockProductRepository()
-	usecase := NewCartUsecase(cartRepo, cartItemRepo, productRepo)
-
-	// Setup test products
+// Helper function to create test products for cart integration tests
+func createCartTestProducts(productRepo *mockProductRepository) {
 	products := []*model.Product{
 		{Name: "Product 1", Price: 10.0, Currency: "USD", Stock: 100, IsActive: true},
 		{Name: "Product 2", Price: 20.0, Currency: "USD", Stock: 50, IsActive: true},
@@ -301,25 +297,16 @@ func TestCartUsecase_Integration_CompleteFlow(t *testing.T) {
 	for _, p := range products {
 		productRepo.Create(p)
 	}
+}
 
-	// Test Case 24: Complete cart workflow
-	userID := uint(1)
-
-	// Initially no cart should exist
-	_, err := usecase.GetByUserID(userID)
-	// Assertion 78: Should return error for non-existent cart initially
-	if err != gorm.ErrRecordNotFound {
-		t.Errorf("Expected gorm.ErrRecordNotFound initially, got %v", err)
-	}
-
-	// Create a cart for the user
+// Helper function to setup cart with items
+func setupCartWithItems(cartRepo *mockCartRepository, cartItemRepo *mockCartItemRepository, userID uint) {
 	testCart := &model.Cart{
 		UserID: userID,
 		Total:  0.0,
 	}
 	cartRepo.Create(testCart)
 
-	// Add first item to cart
 	cartItem1 := &model.CartItem{
 		CartID:    1,
 		ProductID: 1,
@@ -329,7 +316,6 @@ func TestCartUsecase_Integration_CompleteFlow(t *testing.T) {
 	}
 	cartItemRepo.AddItem(cartItem1)
 
-	// Add second item to cart
 	cartItem2 := &model.CartItem{
 		CartID:    1,
 		ProductID: 2,
@@ -338,6 +324,26 @@ func TestCartUsecase_Integration_CompleteFlow(t *testing.T) {
 		Subtotal:  20.0,
 	}
 	cartItemRepo.AddItem(cartItem2)
+}
+
+func TestCartUsecaseIntegrationCreateAndRetrieve(t *testing.T) {
+	cartRepo := newMockCartRepository()
+	cartItemRepo := newMockCartItemRepository()
+	productRepo := newMockProductRepository()
+	usecase := NewCartUsecase(cartRepo, cartItemRepo, productRepo)
+
+	createCartTestProducts(productRepo)
+	userID := uint(1)
+
+	// Initially no cart should exist
+	_, err := usecase.GetByUserID(userID)
+	// Assertion 78: Should return error for non-existent cart initially
+	if err != gorm.ErrRecordNotFound {
+		t.Errorf("Expected gorm.ErrRecordNotFound initially, got %v", err)
+	}
+
+	// Setup cart with items
+	setupCartWithItems(cartRepo, cartItemRepo, userID)
 
 	// Get cart and verify items
 	cart, err := usecase.GetByUserID(userID)
@@ -348,11 +354,22 @@ func TestCartUsecase_Integration_CompleteFlow(t *testing.T) {
 	// Assertion 80: Cart should not be nil
 	if cart == nil {
 		t.Error("Expected cart, got nil")
+		return
 	}
 	// Assertion 81: Cart should belong to correct user
 	if cart.UserID != userID {
 		t.Errorf("Expected cart UserID %d, got %d", userID, cart.UserID)
 	}
+}
+
+func TestCartUsecaseIntegrationUpdateItems(t *testing.T) {
+	cartRepo := newMockCartRepository()
+	cartItemRepo := newMockCartItemRepository()
+	productRepo := newMockProductRepository()
+
+	createCartTestProducts(productRepo)
+	userID := uint(1)
+	setupCartWithItems(cartRepo, cartItemRepo, userID)
 
 	// Test updating cart item quantity
 	updatedItem := &model.CartItem{
@@ -379,9 +396,19 @@ func TestCartUsecase_Integration_CompleteFlow(t *testing.T) {
 	if item.Subtotal != 30.0 {
 		t.Errorf("Expected updated subtotal 30.0, got %f", item.Subtotal)
 	}
+}
+
+func TestCartUsecaseIntegrationRemoveItems(t *testing.T) {
+	cartRepo := newMockCartRepository()
+	cartItemRepo := newMockCartItemRepository()
+	productRepo := newMockProductRepository()
+
+	createCartTestProducts(productRepo)
+	userID := uint(1)
+	setupCartWithItems(cartRepo, cartItemRepo, userID)
 
 	// Test removing item from cart
-	err = cartItemRepo.DeleteItem(2)
+	err := cartItemRepo.DeleteItem(2)
 	// Assertion 85: Should successfully delete cart item
 	if err != nil {
 		t.Errorf("Expected no error deleting item, got %v", err)
@@ -393,9 +420,20 @@ func TestCartUsecase_Integration_CompleteFlow(t *testing.T) {
 	if err != gorm.ErrRecordNotFound {
 		t.Errorf("Expected gorm.ErrRecordNotFound for deleted item, got %v", err)
 	}
+}
+
+func TestCartUsecaseIntegrationClearCart(t *testing.T) {
+	cartRepo := newMockCartRepository()
+	cartItemRepo := newMockCartItemRepository()
+	productRepo := newMockProductRepository()
+	usecase := NewCartUsecase(cartRepo, cartItemRepo, productRepo)
+
+	createCartTestProducts(productRepo)
+	userID := uint(1)
+	setupCartWithItems(cartRepo, cartItemRepo, userID)
 
 	// Test clearing entire cart
-	err = cartItemRepo.ClearCart(1)
+	err := cartItemRepo.ClearCart(1)
 	// Assertion 87: Should successfully clear cart items
 	if err != nil {
 		t.Errorf("Expected no error clearing cart, got %v", err)
@@ -413,7 +451,7 @@ func TestCartUsecase_Integration_CompleteFlow(t *testing.T) {
 	}
 
 	// Verify cart still exists but is empty
-	cart, err = usecase.GetByUserID(userID)
+	cart, err := usecase.GetByUserID(userID)
 	// Assertion 90: Cart should still exist after clearing items
 	if err != nil {
 		t.Errorf("Expected no error getting cart after clearing, got %v", err)
@@ -422,9 +460,20 @@ func TestCartUsecase_Integration_CompleteFlow(t *testing.T) {
 	if cart != nil && cart.UserID != userID {
 		t.Errorf("Expected cart to still belong to user %d", userID)
 	}
+}
+
+func TestCartUsecaseIntegrationDeleteCart(t *testing.T) {
+	cartRepo := newMockCartRepository()
+	cartItemRepo := newMockCartItemRepository()
+	productRepo := newMockProductRepository()
+	usecase := NewCartUsecase(cartRepo, cartItemRepo, productRepo)
+
+	createCartTestProducts(productRepo)
+	userID := uint(1)
+	setupCartWithItems(cartRepo, cartItemRepo, userID)
 
 	// Test deleting entire cart
-	err = cartRepo.Delete(1)
+	err := cartRepo.Delete(1)
 	// Assertion 92: Should successfully delete cart
 	if err != nil {
 		t.Errorf("Expected no error deleting cart, got %v", err)

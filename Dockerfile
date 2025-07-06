@@ -12,9 +12,9 @@ COPY . .
 
 RUN CGO_ENABLED=1 GOOS=linux go build -a -ldflags '-linkmode external -extldflags "-static"' -o main cmd/server.go
 
-FROM alpine:latest
+FROM alpine:3.18
 
-RUN apk --no-cache add ca-certificates sqlite tzdata curl && \
+RUN apk --no-cache add ca-certificates curl sqlite tzdata && \
     addgroup -g 1001 -S appgroup && \
     adduser -u 1001 -S appuser -G appgroup
 

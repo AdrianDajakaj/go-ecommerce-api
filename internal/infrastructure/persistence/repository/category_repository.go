@@ -45,41 +45,57 @@ func (r *categoryRepository) FindAll() ([]model.Category, error) {
 func (r *categoryRepository) FindWithFilters(filters map[string]string) ([]model.Category, error) {
 	db := r.db.Model(&model.Category{})
 
-	if _, ok := filters["with_products"]; ok {
-		db = db.Scopes(scope.ScopeCategoryWithProducts())
-	}
-	if _, ok := filters["with_subcategories"]; ok {
-		db = db.Scopes(scope.ScopeCategoryWithSubcategories())
-	}
-	if v, ok := filters["name"]; ok {
-		db = db.Scopes(scope.ScopeCategoryByName(v))
-	}
-	if v, ok := filters["created_after"]; ok {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			db = db.Scopes(scope.ScopeCategoryCreatedAfter(t))
-		}
-	}
-	if v, ok := filters["created_before"]; ok {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			db = db.Scopes(scope.ScopeCategoryCreatedBefore(t))
-		}
-	}
-	if v, ok := filters["min_products"]; ok {
-		if n, err := strconv.Atoi(v); err == nil {
-			db = db.Scopes(scope.ScopeCategoryByMinProducts(n))
-		}
-	}
-	if v, ok := filters["parent_id"]; ok {
-		if id, err := strconv.Atoi(v); err == nil {
-			db = db.Scopes(scope.ScopeCategoryByParentID(uint(id)))
-		}
-	}
+	r.applyBooleanFilters(db, filters)
+	r.applyStringFilters(db, filters)
+	r.applyTimeFilters(db, filters)
+	r.applyNumericFilters(db, filters)
 
 	var cats []model.Category
 	if err := db.Preload("Subcategories").Find(&cats).Error; err != nil {
 		return nil, err
 	}
 	return cats, nil
+}
+
+func (r *categoryRepository) applyBooleanFilters(db *gorm.DB, filters map[string]string) {
+	if _, ok := filters["with_products"]; ok {
+		db.Scopes(scope.ScopeCategoryWithProducts())
+	}
+	if _, ok := filters["with_subcategories"]; ok {
+		db.Scopes(scope.ScopeCategoryWithSubcategories())
+	}
+}
+
+func (r *categoryRepository) applyStringFilters(db *gorm.DB, filters map[string]string) {
+	if v, ok := filters["name"]; ok {
+		db.Scopes(scope.ScopeCategoryByName(v))
+	}
+}
+
+func (r *categoryRepository) applyTimeFilters(db *gorm.DB, filters map[string]string) {
+	if v, ok := filters["created_after"]; ok {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			db.Scopes(scope.ScopeCategoryCreatedAfter(t))
+		}
+	}
+	if v, ok := filters["created_before"]; ok {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			db.Scopes(scope.ScopeCategoryCreatedBefore(t))
+		}
+	}
+}
+
+func (r *categoryRepository) applyNumericFilters(db *gorm.DB, filters map[string]string) {
+	if v, ok := filters["min_products"]; ok {
+		if n, err := strconv.Atoi(v); err == nil {
+			db.Scopes(scope.ScopeCategoryByMinProducts(n))
+		}
+	}
+	if v, ok := filters["parent_id"]; ok {
+		if id, err := strconv.Atoi(v); err == nil {
+			db.Scopes(scope.ScopeCategoryByParentID(uint(id)))
+		}
+	}
 }
 
 func (r *categoryRepository) Create(category *model.Category) error {

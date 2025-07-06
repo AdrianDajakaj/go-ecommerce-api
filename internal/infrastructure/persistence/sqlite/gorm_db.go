@@ -13,7 +13,7 @@ func NewGormDB(dsn string) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	if err := db.AutoMigrate(
+	models := []interface{}{
 		&model.User{},
 		&model.Address{},
 		&model.Category{},
@@ -23,7 +23,9 @@ func NewGormDB(dsn string) (*gorm.DB, error) {
 		&model.CartItem{},
 		&model.Order{},
 		&model.OrderItem{},
-	); err != nil {
+	}
+
+	if err := db.AutoMigrate(models...); err != nil {
 		return nil, err
 	}
 

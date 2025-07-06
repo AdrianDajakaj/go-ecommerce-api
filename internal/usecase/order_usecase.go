@@ -11,6 +11,24 @@ import (
 	"gorm.io/gorm"
 )
 
+// Error message constants
+const (
+	errFailedToGetOrder     = "failed to get order: %w"
+	errFailedToGetOrders    = "failed to get orders: %w"
+	errFailedToGetCart      = "failed to get cart: %w"
+	errFailedToGetAddress   = "failed to get address: %w"
+	errFailedToGetProduct   = "failed to get product: %w"
+	errFailedToUpdateOrder  = "failed to update order: %w"
+	errFailedToCreateOrder  = "failed to create order: %w"
+	errFailedToUpdateStock  = "failed to update product stock: %w"
+	errFailedToRestoreStock = "failed to restore product stock: %w"
+	errFailedToClearCart    = "failed to clear cart: %w"
+	errFailedToUpdateCart   = "failed to update cart: %w"
+	errCartEmpty            = "cart is empty"
+	errAddressNotFound      = "shipping address not found"
+	errNotEnoughStock       = "not enough stock for product %s"
+)
+
 type OrderUsecase interface {
 	GetByID(id uint) (*model.Order, error)
 	GetByUserID(userID uint) ([]model.Order, error)
@@ -51,7 +69,7 @@ func NewOrderUsecase(
 func (uc *orderUsecase) GetByID(id uint) (*model.Order, error) {
 	order, err := uc.orderRepo.FindByID(id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get order: %w", err)
+		return nil, fmt.Errorf(errFailedToGetOrder, err)
 	}
 	if order == nil {
 		return nil, gorm.ErrRecordNotFound
@@ -62,7 +80,7 @@ func (uc *orderUsecase) GetByID(id uint) (*model.Order, error) {
 func (uc *orderUsecase) GetByUserID(userID uint) ([]model.Order, error) {
 	orders, err := uc.orderRepo.FindByUserID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get orders: %w", err)
+		return nil, fmt.Errorf(errFailedToGetOrders, err)
 	}
 	return orders, nil
 }
@@ -70,7 +88,7 @@ func (uc *orderUsecase) GetByUserID(userID uint) ([]model.Order, error) {
 func (uc *orderUsecase) GetAll() ([]model.Order, error) {
 	orders, err := uc.orderRepo.FindAll()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get orders: %w", err)
+		return nil, fmt.Errorf(errFailedToGetOrders, err)
 	}
 	return orders, nil
 }
@@ -82,18 +100,18 @@ func (u *orderUsecase) GetWithFilters(filters map[string]string) ([]model.Order,
 func (uc *orderUsecase) CreateFromCart(userID uint, paymentMethod model.PaymentMethod, shippingAddressID uint) (*model.Order, error) {
 	cart, err := uc.cartRepo.FindByUserID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get cart: %w", err)
+		return nil, fmt.Errorf(errFailedToGetCart, err)
 	}
 	if cart == nil || len(cart.Items) == 0 {
-		return nil, errors.New("cart is empty")
+		return nil, errors.New(errCartEmpty)
 	}
 
 	address, err := uc.addressRepo.FindByID(shippingAddressID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get address: %w", err)
+		return nil, fmt.Errorf(errFailedToGetAddress, err)
 	}
 	if address == nil {
-		return nil, errors.New("shipping address not found")
+		return nil, errors.New(errAddressNotFound)
 	}
 
 	var orderItems []model.OrderItem
@@ -102,15 +120,15 @@ func (uc *orderUsecase) CreateFromCart(userID uint, paymentMethod model.PaymentM
 	for _, item := range cart.Items {
 		product, err := uc.productRepo.FindByID(item.ProductID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get product: %w", err)
+			return nil, fmt.Errorf(errFailedToGetProduct, err)
 		}
 		if product.Stock < item.Quantity {
-			return nil, fmt.Errorf("not enough stock for product %s", product.Name)
+			return nil, fmt.Errorf(errNotEnoughStock, product.Name)
 		}
 
 		product.Stock -= item.Quantity
 		if err := uc.productRepo.Update(product); err != nil {
-			return nil, fmt.Errorf("failed to update product stock: %w", err)
+			return nil, fmt.Errorf(errFailedToUpdateStock, err)
 		}
 
 		orderItems = append(orderItems, model.OrderItem{
@@ -133,16 +151,16 @@ func (uc *orderUsecase) CreateFromCart(userID uint, paymentMethod model.PaymentM
 	}
 
 	if err := uc.orderRepo.Create(order); err != nil {
-		return nil, fmt.Errorf("failed to create order: %w", err)
+		return nil, fmt.Errorf(errFailedToCreateOrder, err)
 	}
 
 	if err := uc.cartItemRepo.ClearCart(cart.ID); err != nil {
-		return nil, fmt.Errorf("failed to clear cart: %w", err)
+		return nil, fmt.Errorf(errFailedToClearCart, err)
 	}
 
 	cart.Total = 0
 	if err := uc.cartRepo.Update(cart); err != nil {
-		return nil, fmt.Errorf("failed to update cart: %w", err)
+		return nil, fmt.Errorf(errFailedToUpdateCart, err)
 	}
 
 	return order, nil
@@ -151,7 +169,7 @@ func (uc *orderUsecase) CreateFromCart(userID uint, paymentMethod model.PaymentM
 func (uc *orderUsecase) UpdateStatus(id uint, status model.OrderStatus) (*model.Order, error) {
 	order, err := uc.orderRepo.FindByID(id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get order: %w", err)
+		return nil, fmt.Errorf(errFailedToGetOrder, err)
 	}
 	if order == nil {
 		return nil, gorm.ErrRecordNotFound
@@ -167,7 +185,7 @@ func (uc *orderUsecase) UpdateStatus(id uint, status model.OrderStatus) (*model.
 	}
 
 	if err := uc.orderRepo.Update(order); err != nil {
-		return nil, fmt.Errorf("failed to update order: %w", err)
+		return nil, fmt.Errorf(errFailedToUpdateOrder, err)
 	}
 	return order, nil
 }
@@ -175,7 +193,7 @@ func (uc *orderUsecase) UpdateStatus(id uint, status model.OrderStatus) (*model.
 func (uc *orderUsecase) CancelOrder(id uint) (*model.Order, error) {
 	order, err := uc.orderRepo.FindByID(id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get order: %w", err)
+		return nil, fmt.Errorf(errFailedToGetOrder, err)
 	}
 	if order == nil {
 		return nil, gorm.ErrRecordNotFound
@@ -188,7 +206,7 @@ func (uc *orderUsecase) CancelOrder(id uint) (*model.Order, error) {
 	for _, item := range order.Items {
 		product, err := uc.productRepo.FindByID(item.ProductID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get product: %w", err)
+			return nil, fmt.Errorf(errFailedToGetProduct, err)
 		}
 		if product == nil {
 			continue
@@ -196,7 +214,7 @@ func (uc *orderUsecase) CancelOrder(id uint) (*model.Order, error) {
 
 		product.Stock += item.Quantity
 		if err := uc.productRepo.Update(product); err != nil {
-			return nil, fmt.Errorf("failed to restore product stock: %w", err)
+			return nil, fmt.Errorf(errFailedToRestoreStock, err)
 		}
 	}
 
@@ -205,7 +223,7 @@ func (uc *orderUsecase) CancelOrder(id uint) (*model.Order, error) {
 	order.CancelledAt = &now
 
 	if err := uc.orderRepo.Update(order); err != nil {
-		return nil, fmt.Errorf("failed to update order: %w", err)
+		return nil, fmt.Errorf(errFailedToUpdateOrder, err)
 	}
 
 	return order, nil
